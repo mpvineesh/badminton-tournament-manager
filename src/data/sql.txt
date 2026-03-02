@@ -1,0 +1,24 @@
+create table if not exists public.players (
+  id text primary key,
+  name text not null,
+  age int,
+  mobile text,
+  skill int not null check (skill between 1 and 10),
+  created_at timestamp with time zone default now()
+);
+
+create table if not exists public.tournaments (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  status text not null default 'Upcoming' check (status in ('Live', 'Completed', 'Upcoming')),
+  payload jsonb not null,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+create table if not exists public.tournament_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  tournament_id uuid not null references public.tournaments(id) on delete cascade,
+  payload jsonb not null,
+  created_at timestamp with time zone default now()
+);
