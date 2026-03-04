@@ -59,6 +59,16 @@ function DeleteIcon({ className = 'h-4 w-4' }) {
 
 export default function App() {
   const AUTH_MOBILE_KEY = 'tm_logged_mobile';
+  const ACTIVE_MENU_KEY = 'tm_active_menu';
+  const RESTORABLE_MENUS = new Set([
+    'home',
+    'fixture',
+    'players',
+    'profile',
+    'skill-level',
+    'predictions',
+    'tournaments',
+  ]);
   const t = useTournamentState();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -118,13 +128,25 @@ export default function App() {
   useEffect(() => {
     const storedMobile = window.localStorage.getItem(AUTH_MOBILE_KEY);
     if (storedMobile) {
+      const savedMenu = String(window.localStorage.getItem(ACTIVE_MENU_KEY) || '').trim();
+      const restoredMenu = savedMenu === 'tournament'
+        ? 'tournaments'
+        : (RESTORABLE_MENUS.has(savedMenu) ? savedMenu : 'home');
       setIsLoggedIn(true);
-      setActiveMenu('home');
+      setActiveMenu(restoredMenu);
     } else {
       setIsLoggedIn(false);
+      window.localStorage.removeItem(ACTIVE_MENU_KEY);
       setActiveMenu('login');
     }
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (activeMenu === 'login') return;
+    if (!RESTORABLE_MENUS.has(activeMenu)) return;
+    window.localStorage.setItem(ACTIVE_MENU_KEY, activeMenu);
+  }, [isLoggedIn, activeMenu]);
 
   useEffect(() => {
     refreshPlayersList();
@@ -237,6 +259,7 @@ export default function App() {
     setAuthError('');
     if (isLoggedIn) {
       window.localStorage.removeItem(AUTH_MOBILE_KEY);
+      window.localStorage.removeItem(ACTIVE_MENU_KEY);
       setIsAdminUser(false);
       setIsLoggedIn(false);
       setActiveMenu('login');
