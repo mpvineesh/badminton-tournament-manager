@@ -4,8 +4,19 @@ create table if not exists public.players (
   age int,
   mobile text,
   skill int not null check (skill between 1 and 10),
+  role text not null default 'player' check (role in ('admin', 'player')),
   created_at timestamp with time zone default now()
 );
+
+insert into public.players (id, name, age, mobile, skill, role)
+values ('P-DEMO-VINEESH', 'Vineesh', 30, '9567723832', 7, 'admin')
+on conflict (id) do update
+set
+  name = excluded.name,
+  age = excluded.age,
+  mobile = excluded.mobile,
+  skill = excluded.skill,
+  role = excluded.role;
 
 create table if not exists public.tournaments (
   id uuid primary key default gen_random_uuid(),

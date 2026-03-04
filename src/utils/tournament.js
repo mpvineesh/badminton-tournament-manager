@@ -53,7 +53,13 @@ export function roundRobin(teamIds) {
  * Points: win=2, loss=0. Tiebreaks: points desc → (PF-PA) desc → PF desc.
  * @returns {Record<string, {teamId:string, played:number, won:number, lost:number, pf:number, pa:number, points:number}[]>}
  */
-export function computeStandings(pools, teams, matches) {
+export function computeStandings(pools, teams, matches, pointSystem = {}) {
+  const winnerPoints = Number(pointSystem?.winnerPoints ?? 2);
+  const winnerBonusOppScoreLessThan = Number(pointSystem?.winnerBonusOppScoreLessThan ?? NaN);
+  const winnerBonusPoints = Number(pointSystem?.winnerBonusPoints ?? 0);
+  const loserBonusScoreGreaterThan = Number(pointSystem?.loserBonusScoreGreaterThan ?? NaN);
+  const loserBonusPoints = Number(pointSystem?.loserBonusPoints ?? 0);
+
   const result = {};
   const teamSet = new Set(teams.map((t) => t.id));
 
@@ -71,29 +77,56 @@ export function computeStandings(pools, teams, matches) {
         points: 0,
       };
     }
-    for (const m of matches.filter(
-      (m) => m.poolId === p.id && m.status === 'Completed'
-    )) {
+    for (const m of matches.filter((m) => m.status === 'Completed')) {
       if (!teamSet.has(m.teamAId) || !teamSet.has(m.teamBId)) continue;
       const A = table[m.teamAId];
       const B = table[m.teamBId];
-      if (!A || !B) continue;
+      if (!A && !B) continue;
 
-      A.played++;
-      B.played++;
-      A.pf += m.scoreA || 0;
-      A.pa += m.scoreB || 0;
-      B.pf += m.scoreB || 0;
-      B.pa += m.scoreA || 0;
+      const scoreA = m.scoreA || 0;
+      const scoreB = m.scoreB || 0;
+      const aWon = scoreA > scoreB;
+      const winnerScore = aWon ? scoreA : scoreB;
+      const loserScore = aWon ? scoreB : scoreA;
+      let winnerExtra = 0;
+      let loserExtra = 0;
+      if (
+        Number.isFinite(winnerBonusOppScoreLessThan) &&
+        loserScore < winnerBonusOppScoreLessThan
+      ) {
+        winnerExtra += Math.max(0, winnerBonusPoints);
+      }
+      if (
+        Number.isFinite(loserBonusScoreGreaterThan) &&
+        loserScore > loserBonusScoreGreaterThan
+      ) {
+        loserExtra += Math.max(0, loserBonusPoints);
+      }
 
-      if ((m.scoreA || 0) > (m.scoreB || 0)) {
-        A.won++;
-        B.lost++;
-        A.points += 2;
-      } else {
-        B.won++;
-        A.lost++;
-        B.points += 2;
+      if (A) {
+        A.played++;
+        A.pf += scoreA;
+        A.pa += scoreB;
+        if (aWon) {
+          A.won++;
+          A.points += Math.max(0, winnerPoints) + winnerExtra;
+        } else {
+          A.lost++;
+          A.points += loserExtra;
+        }
+      }
+
+      if (B) {
+        B.played++;
+        B.pf += scoreB;
+        B.pa += scoreA;
+        if (!aWon) {
+          B.won++;
+          B.points += Math.max(0, winnerPoints) + winnerExtra;
+        } else {
+          B.lost++;
+          B.points += loserExtra;
+        }
       }
     }
 

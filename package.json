@@ -10,7 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dataconnect/generated": "file:src/dataconnect-generated",
     "@supabase/supabase-js": "^2.58.0",
+    "firebase": "^12.0.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

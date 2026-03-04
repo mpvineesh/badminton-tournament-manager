@@ -171,11 +171,213 @@ export default function useTournamentState() {
     return out;
   }, [pools, poolStandings]);
 
-  // ===== Actions (unchanged logic; omitted here for brevity) =====
-  // keep your existing resetAll, addPlayer, removePlayer, createSinglesTeams, autoPairDoubles, addManualTeam,
-  // removeTeam, autoAssignPoolsAndFixtures, updateMatchScore, finalizeMatch, resetMatch,
-  // generateSemis (now supports 1-pool top 4 in your existing code), updateKoScore, finalizeKo,
-  // team edit, bulk edit, regenerateAfterTeamChange, etc.
+  function getPlayerById(id) {
+    return players.find((p) => p.id === id) || null;
+  }
+
+  function buildTeamName(memberIds) {
+    return memberIds.map((pid) => getPlayerById(pid)?.name || 'Unknown').join(' & ');
+  }
+
+  function buildTeamAvgSkill(memberIds) {
+    const skills = memberIds
+      .map((pid) => Number(getPlayerById(pid)?.skill))
+      .filter((s) => Number.isFinite(s));
+    if (skills.length === 0) return 0;
+    const total = skills.reduce((a, b) => a + b, 0);
+    return Number((total / skills.length).toFixed(1));
+  }
+
+  function removePlayer(id) {
+    if (!id) return;
+
+    const removedTeamIds = teams
+      .filter((tm) => (tm.players || []).includes(id))
+      .map((tm) => tm.id);
+
+    setPlayers((prev) => prev.filter((p) => p.id !== id));
+
+    if (removedTeamIds.length === 0) return;
+
+    const removedSet = new Set(removedTeamIds);
+    setTeams((prev) => prev.filter((tm) => !removedSet.has(tm.id)));
+    setPools((prev) =>
+      prev.map((pool) => ({
+        ...pool,
+        teamIds: (pool.teamIds || []).filter((tid) => !removedSet.has(tid)),
+      }))
+    );
+    setGroupMatches((prev) =>
+      prev.filter((m) => !removedSet.has(m.teamAId) && !removedSet.has(m.teamBId))
+    );
+    setSemiMatches((prev) =>
+      prev.filter((m) => !removedSet.has(m.teamAId) && !removedSet.has(m.teamBId))
+    );
+    setFinalMatch((prev) => {
+      if (!prev) return prev;
+      if (removedSet.has(prev.teamAId) || removedSet.has(prev.teamBId)) return null;
+      return prev;
+    });
+
+    if (editingTeamId && removedSet.has(editingTeamId)) {
+      setEditingTeamId(null);
+      setEditP1(null);
+      setEditP2(null);
+      setEditErr('');
+    }
+  }
+
+  function removeTeam(id) {
+    setTeams((prev) => prev.filter((tm) => tm.id !== id));
+    setPools((prev) =>
+      prev.map((pool) => ({
+        ...pool,
+        teamIds: (pool.teamIds || []).filter((tid) => tid !== id),
+      }))
+    );
+    setGroupMatches((prev) =>
+      prev.filter((m) => m.teamAId !== id && m.teamBId !== id)
+    );
+    setSemiMatches((prev) =>
+      prev.filter((m) => m.teamAId !== id && m.teamBId !== id)
+    );
+    setFinalMatch((prev) =>
+      prev && (prev.teamAId === id || prev.teamBId === id) ? null : prev
+    );
+    if (editingTeamId === id) {
+      setEditingTeamId(null);
+      setEditP1(null);
+      setEditP2(null);
+      setEditErr('');
+    }
+  }
+
+  function startEditTeam(id) {
+    const team = teams.find((tm) => tm.id === id);
+    if (!team) return;
+    setEditingTeamId(id);
+    setEditP1(team.players?.[0] || null);
+    setEditP2(team.players?.[1] || null);
+    setEditErr('');
+  }
+
+  function cancelEditTeam() {
+    setEditingTeamId(null);
+    setEditP1(null);
+    setEditP2(null);
+    setEditErr('');
+  }
+
+  function saveEditTeam() {
+    if (!editingTeamId) return;
+
+    const nextMembers =
+      mode === 'doubles'
+        ? [editP1, editP2].filter(Boolean)
+        : [editP1].filter(Boolean);
+
+    if (mode === 'doubles' && nextMembers.length !== 2) {
+      setEditErr('Select 2 players for doubles team.');
+      return;
+    }
+    if (mode !== 'doubles' && nextMembers.length !== 1) {
+      setEditErr('Select 1 player for this team.');
+      return;
+    }
+    if (new Set(nextMembers).size !== nextMembers.length) {
+      setEditErr('Same player cannot be selected twice.');
+      return;
+    }
+
+    const duplicateInOtherTeam = teams.some(
+      (tm) =>
+        tm.id !== editingTeamId &&
+        (tm.players || []).some((pid) => nextMembers.includes(pid))
+    );
+    if (duplicateInOtherTeam) {
+      setEditErr('A selected player already belongs to another team.');
+      return;
+    }
+
+    setTeams((prev) =>
+      prev.map((tm) =>
+        tm.id === editingTeamId
+          ? {
+              ...tm,
+              players: nextMembers,
+              name: buildTeamName(nextMembers),
+              avgSkill: buildTeamAvgSkill(nextMembers),
+            }
+          : tm
+      )
+    );
+    cancelEditTeam();
+  }
+
+  function startBulkEdit() {
+    const rows = {};
+    for (const tm of teams) {
+      rows[tm.id] = [...(tm.players || [])];
+    }
+    setBulkRows(rows);
+    setBulkErr('');
+    setBulkEditing(true);
+  }
+
+  function cancelBulkEdit() {
+    setBulkEditing(false);
+    setBulkRows({});
+    setBulkErr('');
+  }
+
+  function updateBulkRow(teamId, index, value) {
+    setBulkRows((prev) => {
+      const current = [...(prev[teamId] || [])];
+      current[index] = value || null;
+      return { ...prev, [teamId]: current };
+    });
+    setBulkErr('');
+  }
+
+  function validateAndSaveBulk() {
+    const used = new Set();
+    const updates = new Map();
+
+    for (const tm of teams) {
+      const row = (bulkRows[tm.id] || []).filter(Boolean);
+      if (mode === 'doubles' && row.length !== 2) {
+        setBulkErr('Every doubles team must have 2 players.');
+        return;
+      }
+      if (mode !== 'doubles' && row.length !== 1) {
+        setBulkErr('Every team must have 1 player.');
+        return;
+      }
+
+      for (const pid of row) {
+        if (used.has(pid)) {
+          setBulkErr('A player cannot be assigned to multiple teams.');
+          return;
+        }
+        used.add(pid);
+      }
+
+      updates.set(tm.id, row);
+    }
+
+    setTeams((prev) =>
+      prev.map((tm) => {
+        const memberIds = updates.get(tm.id) || tm.players || [];
+        return {
+          ...tm,
+          players: memberIds,
+          name: buildTeamName(memberIds),
+          avgSkill: buildTeamAvgSkill(memberIds),
+        };
+      })
+    );
+    cancelBulkEdit();
+  }
 
   // ===== Tournaments browser methods (unchanged interface) =====
   async function refreshTournamentList() {
@@ -283,11 +485,11 @@ export default function useTournamentState() {
     // actions (make sure your previous implementations are returned here)
     resetAll: /* your existing fn */ undefined,
     addPlayer: /* your existing fn */ undefined,
-    removePlayer: /* your existing fn */ undefined,
+    removePlayer,
     createSinglesTeams: /* your existing fn */ undefined,
     autoPairDoubles: /* your existing fn */ undefined,
     addManualTeam: /* your existing fn */ undefined,
-    removeTeam: /* your existing fn */ undefined,
+    removeTeam,
     autoAssignPoolsAndFixtures: /* your existing fn */ undefined,
     updateMatchScore: /* your existing fn */ undefined,
     finalizeMatch: /* your existing fn */ undefined,
@@ -305,18 +507,18 @@ export default function useTournamentState() {
     setEditP2,
     editErr,
     setEditErr,
-    startEditTeam: /* your existing fn */ undefined,
-    cancelEditTeam: /* your existing fn */ undefined,
-    saveEditTeam: /* your existing fn */ undefined,
+    startEditTeam,
+    cancelEditTeam,
+    saveEditTeam,
 
     // bulk edit
     bulkEditing,
-    startBulkEdit: /* your existing fn */ undefined,
-    cancelBulkEdit: /* your existing fn */ undefined,
+    startBulkEdit,
+    cancelBulkEdit,
     bulkRows,
     bulkErr,
-    updateBulkRow: /* your existing fn */ undefined,
-    validateAndSaveBulk: /* your existing fn */ undefined,
+    updateBulkRow,
+    validateAndSaveBulk,
 
     // final/champion (derived in your App)
     champion: useMemo(() => {
