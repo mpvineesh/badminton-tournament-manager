@@ -11,6 +11,7 @@ export default function TournamentsScreen({
   tournamentsLoading,
   tournamentsList,
   canDeleteTournament,
+  getTournamentCreatorName,
   onOpenTournamentDetails,
   onOpenTournamentFixture,
   handleTournamentDelete,
@@ -252,6 +253,11 @@ export default function TournamentsScreen({
                           </button>
                         )}
                       </div>
+                      {isAdminUser && (
+                        <div className="mt-2 text-[11px] text-slate-500 text-right">
+                          Created by: {getTournamentCreatorName?.(row) || 'Unknown'}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -276,6 +282,11 @@ export default function TournamentsScreen({
                             >
                               {row.name}
                             </button>
+                            {isAdminUser && (
+                              <div className="mt-0.5 text-[11px] text-slate-500 text-right">
+                                Created by: {getTournamentCreatorName?.(row) || 'Unknown'}
+                              </div>
+                            )}
                           </td>
                           <td className="p-2">
                             <span className="text-sm font-medium">

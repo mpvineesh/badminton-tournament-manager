@@ -21,6 +21,13 @@ import ProfileScreen from './components/ProfileScreen.jsx';
 import SkillLevelScreen from './components/SkillLevelScreen.jsx';
 import PredictionsScreen from './components/PredictionsScreen.jsx';
 import { roundRobin, toIsoLocal, computeStandings } from './utils/tournament.js';
+import {
+  initAnalytics,
+  setAnalyticsUser,
+  clearAnalyticsUser,
+  trackScreenView,
+  trackAnalyticsEvent,
+} from './utils/analytics.js';
 
 import useTournamentState from './hooks/useTournamentState.js';
 import {
@@ -39,6 +46,7 @@ import {
   listSkillSuggestionAverages,
   getPredictionByTournamentAndUser,
   savePrediction,
+  uploadPlayerProfilePhoto,
 } from './supabaseAdapter.js';
 
 function EditIcon({ className = 'h-4 w-4' }) {
@@ -126,6 +134,7 @@ export default function App() {
   const messageTopRef = useRef(null);
 
   useEffect(() => {
+    initAnalytics();
     const storedMobile = window.localStorage.getItem(AUTH_MOBILE_KEY);
     if (storedMobile) {
       const savedMenu = String(window.localStorage.getItem(ACTIVE_MENU_KEY) || '').trim();
@@ -174,6 +183,11 @@ export default function App() {
   }, [isLoggedIn, activeMenu, playersDbList, isAdminUser]);
 
   useEffect(() => {
+    if (!isLoggedIn) return;
+    trackScreenView(activeMenu);
+  }, [isLoggedIn, activeMenu]);
+
+  useEffect(() => {
     // Clear stale banners when user navigates to another screen.
     t.setError('');
     setTournamentsError('');
@@ -198,7 +212,7 @@ export default function App() {
   }, [activeMenu, tournamentView, selectedTournament, selectedMatchRef]);
 
   useEffect(() => {
-    if (t.mode === 'singles') t.setMode('group');
+    if (t.mode === 'singles') t.setMode('doubles');
   }, [t.mode]);
 
   useEffect(() => {
@@ -260,6 +274,7 @@ export default function App() {
     if (isLoggedIn) {
       window.localStorage.removeItem(AUTH_MOBILE_KEY);
       window.localStorage.removeItem(ACTIVE_MENU_KEY);
+      clearAnalyticsUser();
       setIsAdminUser(false);
       setIsLoggedIn(false);
       setActiveMenu('login');
@@ -300,8 +315,18 @@ export default function App() {
         throw new Error('Mobile number not found in players list.');
       }
       window.localStorage.setItem(AUTH_MOBILE_KEY, enteredMobile);
-      setIsAdminUser(Boolean(isDemoAdmin || matchedPlayer?.role === 'admin'));
+      const nextIsAdmin = Boolean(isDemoAdmin || matchedPlayer?.role === 'admin');
+      setIsAdminUser(nextIsAdmin);
       setIsLoggedIn(true);
+      if (matchedPlayer?.id) {
+        setAnalyticsUser(matchedPlayer.id, {
+          role: nextIsAdmin ? 'admin' : 'player',
+        });
+      }
+      trackAnalyticsEvent('login_success', {
+        method: 'mobile_otp',
+        role: nextIsAdmin ? 'admin' : 'player',
+      });
       setActiveMenu('home');
     } catch (e) {
       console.error(e);
@@ -375,6 +400,17 @@ export default function App() {
     return toLast10(payload?.createdByMobile || '');
   }
 
+  function getTournamentCreatorName(tournamentRowOrPayload) {
+    const creatorMobile = getTournamentCreatorMobile(tournamentRowOrPayload);
+    if (!creatorMobile) return 'Unknown';
+    const match = (playersDbList || []).find((p) => {
+      const pm = String(p?.mobile || '').trim();
+      return pm && toLast10(pm) === creatorMobile;
+    });
+    const name = String(match?.name || '').trim();
+    return name || creatorMobile;
+  }
+
   function canDeleteTournament(tournamentRow) {
     if (isAdminUser) return true;
     const currentMobile = getCurrentUserMobileNormalized();
@@ -386,10 +422,16 @@ export default function App() {
   useEffect(() => {
     if (!isLoggedIn) {
       setIsAdminUser(false);
+      clearAnalyticsUser();
       return;
     }
     const loggedMobile = window.localStorage.getItem(AUTH_MOBILE_KEY) || '';
     const matched = resolveLoggedInPlayer(playersDbList, loggedMobile);
+    if (matched?.id) {
+      setAnalyticsUser(matched.id, {
+        role: matched?.role === 'admin' ? 'admin' : 'player',
+      });
+    }
     if (matched?.role === 'admin') {
       setIsAdminUser(true);
       return;
@@ -511,6 +553,7 @@ export default function App() {
             mobile: String(p.mobile || '').trim(),
             skill: nextSkill,
             role: p.role || 'player',
+            avatarUrl: String(p.avatarUrl || '').trim(),
           });
         });
 
@@ -565,12 +608,18 @@ export default function App() {
       if (!Number.isInteger(nextAge) || nextAge < 1) {
         throw new Error('Age should be a positive whole number.');
       }
+      let avatarUrl = String(profilePlayer?.avatarUrl || '').trim();
+      if (updates?.avatarFile) {
+        const uploaded = await uploadPlayerProfilePhoto(profilePlayer.id, updates.avatarFile);
+        avatarUrl = String(uploaded?.url || '').trim();
+      }
       const payload = {
         name: String(updates?.name || profilePlayer.name || '').trim(),
         mobile: String(updates?.mobile || profilePlayer.mobile || '').trim(),
         age: nextAge,
         skill: Number(profilePlayer.skill) || 5,
         role: profilePlayer.role || 'player',
+        avatarUrl,
       };
       const updated = await updatePlayer(profilePlayer.id, payload);
       setProfilePlayer(updated || { ...profilePlayer, ...payload });
@@ -615,7 +664,11 @@ export default function App() {
     setPlayersDbUpdatingId(id);
     setPlayersDbError('');
     try {
-      await updatePlayer(id, player);
+      const existing = (playersDbList || []).find((row) => row?.id === id);
+      await updatePlayer(id, {
+        ...player,
+        avatarUrl: String(existing?.avatarUrl || '').trim(),
+      });
       await refreshPlayersList();
       return true;
     } catch (e) {
@@ -2500,6 +2553,7 @@ export default function App() {
             tournamentsLoading={tournamentsLoading}
             tournamentsList={tournamentsList}
             canDeleteTournament={canDeleteTournament}
+            getTournamentCreatorName={getTournamentCreatorName}
             onOpenTournamentDetails={openTournamentDetailsFromHome}
             onOpenTournamentFixture={async (id) => {
               await t.loadTournamentById(id);

@@ -24,7 +24,7 @@ import {
 
 export default function useTournamentState() {
   // ===== Core tournament state (unchanged) =====
-  const [mode, setMode] = useState('singles');
+  const [mode, setMode] = useState('doubles');
   const [eventDate, setEventDate] = useState(isoDateToday());
   const [numPools, setNumPools] = useState(2);
 
@@ -413,7 +413,7 @@ export default function useTournamentState() {
   async function loadTournamentById(id) {
     const t = await loadTournament(id);
     if (!t) return;
-    setMode(t.mode || 'singles');
+    setMode(t.mode || 'doubles');
     setEventDate(t.eventDate || isoDateToday());
     setNumPools(t.numPools || 1);
     setPlayers(t.players || []);

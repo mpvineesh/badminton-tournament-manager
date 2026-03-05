@@ -11,7 +11,8 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { db, hasFirebaseConfig } from './firebaseClient.js';
+import { getDownloadURL, getStorage as getFirebaseStorage, ref, uploadBytes } from 'firebase/storage';
+import { db, storage, hasFirebaseConfig, firebaseApp } from './firebaseClient.js';
 
 const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL ||
@@ -229,6 +230,157 @@ function ensureFirebaseDb(scope) {
   return db;
 }
 
+function ensureFirebaseStorage(scope) {
+  if (!hasFirebaseConfig || !storage) {
+    throw new Error(
+      `[${scope}] Firebase Storage is not configured. Set VITE_FIREBASE_STORAGE_BUCKET (and related Firebase env vars).`
+    );
+  }
+  return storage;
+}
+
+function profilePhotoStorageProvider() {
+  const raw = String(import.meta.env.VITE_PROFILE_PHOTO_STORAGE || '').trim().toLowerCase();
+  return raw === 'backblaze' ? 'backblaze' : 'firebase';
+}
+
+function buildProfilePhotoPath(playerId, fileName) {
+  const safeName = String(fileName || 'photo')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(-80);
+  return `profile_photos/${playerId}/${Date.now()}_${safeName}`;
+}
+
+async function uploadProfilePhotoToBackblaze(path, file) {
+  const signEndpoint = String(import.meta.env.VITE_BACKBLAZE_SIGNED_UPLOAD_URL || '').trim();
+  if (!signEndpoint) {
+    throw new Error(
+      '[uploadPlayerProfilePhoto] Backblaze is enabled, but VITE_BACKBLAZE_SIGNED_UPLOAD_URL is missing.'
+    );
+  }
+
+  const signToken = String(import.meta.env.VITE_BACKBLAZE_SIGNED_UPLOAD_TOKEN || '').trim();
+  const signHeaders = { 'Content-Type': 'application/json' };
+  if (signToken) signHeaders.Authorization = `Bearer ${signToken}`;
+
+  const signRes = await fetch(signEndpoint, {
+    method: 'POST',
+    headers: signHeaders,
+    body: JSON.stringify({
+      path,
+      fileName: String(file.name || '').trim() || 'photo',
+      contentType: String(file.type || 'application/octet-stream'),
+    }),
+  });
+  if (!signRes.ok) {
+    throw new Error(`[uploadPlayerProfilePhoto] Backblaze signing failed (${signRes.status}).`);
+  }
+
+  const signPayload = await signRes.json();
+  const uploadUrl = String(signPayload?.uploadUrl || '').trim();
+  if (!uploadUrl) {
+    throw new Error('[uploadPlayerProfilePhoto] Backblaze signing response missing uploadUrl.');
+  }
+
+  const uploadMethod = String(signPayload?.method || 'PUT').toUpperCase();
+  const uploadHeaders =
+    signPayload?.headers && typeof signPayload.headers === 'object'
+      ? { ...signPayload.headers }
+      : {};
+  if (
+    uploadMethod === 'PUT' &&
+    !Object.keys(uploadHeaders).some((k) => k.toLowerCase() === 'content-type')
+  ) {
+    uploadHeaders['Content-Type'] = String(file.type || 'application/octet-stream');
+  }
+
+  let uploadRes;
+  const formFields =
+    signPayload?.fields && typeof signPayload.fields === 'object' ? signPayload.fields : null;
+  if (formFields && Object.keys(formFields).length > 0) {
+    const form = new FormData();
+    Object.entries(formFields).forEach(([k, v]) => {
+      form.append(k, String(v ?? ''));
+    });
+    form.append('file', file);
+    uploadRes = await fetch(uploadUrl, { method: 'POST', body: form });
+  } else {
+    uploadRes = await fetch(uploadUrl, {
+      method: uploadMethod,
+      headers: uploadHeaders,
+      body: file,
+    });
+  }
+
+  if (!uploadRes.ok) {
+    throw new Error(`[uploadPlayerProfilePhoto] Backblaze upload failed (${uploadRes.status}).`);
+  }
+
+  const directUrl = String(signPayload?.publicUrl || '').trim();
+  const publicBase = String(import.meta.env.VITE_BACKBLAZE_PUBLIC_BASE_URL || '').trim();
+  const normalizedBase = publicBase.replace(/\/+$/, '');
+  const normalizedPath = path.replace(/^\/+/, '');
+  const fallbackUrl = normalizedBase ? `${normalizedBase}/${normalizedPath}` : '';
+  const url = directUrl || fallbackUrl;
+  if (!url) {
+    throw new Error(
+      '[uploadPlayerProfilePhoto] Backblaze upload succeeded, but public URL is missing.'
+    );
+  }
+
+  return { url, path };
+}
+
+/**
+ * Upload a profile picture to configured storage and return a public URL.
+ * @param {string} playerId
+ * @param {File} file
+ */
+export async function uploadPlayerProfilePhoto(playerId, file) {
+  const uid = String(playerId || '').trim();
+  if (!uid) throw new Error('[uploadPlayerProfilePhoto] Missing player id');
+  if (!file) throw new Error('[uploadPlayerProfilePhoto] File is required');
+  if (!String(file.type || '').startsWith('image/')) {
+    throw new Error('[uploadPlayerProfilePhoto] Please select an image file.');
+  }
+
+  const path = buildProfilePhotoPath(uid, file.name);
+  if (profilePhotoStorageProvider() === 'backblaze') {
+    return uploadProfilePhotoToBackblaze(path, file);
+  }
+
+  const fs = ensureFirebaseStorage('uploadPlayerProfilePhoto');
+  const uploadTo = async (targetStorage) => {
+    const fileRef = ref(targetStorage, path);
+    await uploadBytes(fileRef, file, { contentType: file.type || 'application/octet-stream' });
+    const url = await getDownloadURL(fileRef);
+    return { url, path };
+  };
+
+  try {
+    return await uploadTo(fs);
+  } catch (firstErr) {
+    const msg = String(firstErr?.message || '');
+    const isCorsLike =
+      /cors/i.test(msg) ||
+      /networkerror/i.test(msg) ||
+      /failed to fetch/i.test(msg) ||
+      /load failed/i.test(msg);
+    const projectId = String(import.meta.env.VITE_FIREBASE_PROJECT_ID || '').trim();
+    if (!isCorsLike || !firebaseApp || !projectId) {
+      throw firstErr;
+    }
+    // Some projects are configured with <project>.firebasestorage.app while
+    // uploads only work against the gs://<project>.appspot.com bucket.
+    const fallbackStorage = getFirebaseStorage(firebaseApp, `gs://${projectId}.appspot.com`);
+    try {
+      return await uploadTo(fallbackStorage);
+    } catch {
+      throw firstErr;
+    }
+  }
+}
+
 // ================================
 // FILE: src/supabaseAdapter.js
 // ================================
@@ -333,6 +485,7 @@ export async function listPlayers() {
     age: null,
     mobile: '',
     role: 'player',
+    avatarUrl: p?.avatarUrl || '',
   }));
 }
 
@@ -365,6 +518,7 @@ export async function upsertPlayers(players) {
           mobile: '',
           skill,
           role: 'player',
+          avatarUrl: '',
           created_at: new Date().toISOString(),
         };
         current.push(row);
@@ -400,6 +554,7 @@ export async function upsertPlayers(players) {
             age: null,
             mobile: '',
             role: 'player',
+            avatarUrl: '',
             created_at: new Date().toISOString(),
           })
         );
@@ -410,6 +565,7 @@ export async function upsertPlayers(players) {
           age: null,
           mobile: '',
           role: 'player',
+          avatarUrl: '',
           created_at: new Date().toISOString(),
         });
       }
@@ -455,6 +611,7 @@ export async function createPlayer(player) {
     mobile: String(player?.mobile || '').trim(),
     skill: Math.min(10, Math.max(1, Number(player?.skill) || 5)),
     role: normalizePlayerRole(player?.role),
+    avatarUrl: String(player?.avatarUrl || '').trim(),
   };
 
   if (!row.name) throw new Error('[createPlayer] Name is required');
@@ -489,7 +646,13 @@ export async function createPlayer(player) {
 
   const { data, error } = await supabase
     .from('players')
-    .insert(row)
+    .insert({
+      name: row.name,
+      age: row.age,
+      mobile: row.mobile,
+      skill: row.skill,
+      role: row.role,
+    })
     .select('id, name, age, mobile, skill, role')
     .single();
 
@@ -506,6 +669,7 @@ export async function updatePlayer(id, player) {
     mobile: String(player?.mobile || '').trim(),
     skill: Math.min(10, Math.max(1, Number(player?.skill) || 5)),
     role: normalizePlayerRole(player?.role),
+    avatarUrl: String(player?.avatarUrl || '').trim(),
   };
 
   if (!row.name) throw new Error('[updatePlayer] Name is required');
@@ -530,7 +694,13 @@ export async function updatePlayer(id, player) {
 
   const { data, error } = await supabase
     .from('players')
-    .update(row)
+    .update({
+      name: row.name,
+      age: row.age,
+      mobile: row.mobile,
+      skill: row.skill,
+      role: row.role,
+    })
     .eq('id', id)
     .select('id, name, age, mobile, skill, role')
     .single();
