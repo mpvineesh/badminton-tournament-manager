@@ -106,8 +106,58 @@ async function getBackblazeUploadMeta() {
   return { auth, upload, bucketName };
 }
 
+async function getBackblazeDownloadMeta() {
+  const keyId = readRequiredEnv('BACKBLAZE_KEY_ID');
+  const appKey = readRequiredEnv('BACKBLAZE_APPLICATION_KEY');
+  const bucketName = readRequiredEnv('BACKBLAZE_BUCKET_NAME');
+  const auth = await b2Authorize({ keyId, appKey });
+  return { auth, bucketName };
+}
+
 app.get('/health', (_req, res) => {
   res.status(200).json({ ok: true });
+});
+
+app.get('/profile-photo/view', async (req, res) => {
+  try {
+    const path = normalizePath(req.query?.path);
+    const { auth, bucketName } = await getBackblazeDownloadMeta();
+    const publicPath = toPublicFilePath(path);
+    const downloadUrl = `${auth.downloadUrl}/file/${bucketName}/${publicPath}`;
+    const upstream = await fetch(downloadUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: auth.authorizationToken,
+      },
+    });
+    if (!upstream.ok) {
+      const body = await upstream.text().catch(() => '');
+      return res.status(upstream.status).json({
+        error: 'Unable to fetch profile photo',
+        detail: body || `status=${upstream.status}`,
+      });
+    }
+
+    const contentType = String(upstream.headers.get('content-type') || 'application/octet-stream');
+    const contentLength = upstream.headers.get('content-length');
+    const etag = upstream.headers.get('etag');
+    const lastModified = upstream.headers.get('last-modified');
+    const cacheControl = upstream.headers.get('cache-control') || 'private, max-age=120';
+    res.setHeader('Content-Type', contentType);
+    if (contentLength) res.setHeader('Content-Length', contentLength);
+    if (etag) res.setHeader('ETag', etag);
+    if (lastModified) res.setHeader('Last-Modified', lastModified);
+    res.setHeader('Cache-Control', cacheControl);
+
+    const bytes = Buffer.from(await upstream.arrayBuffer());
+    return res.status(200).send(bytes);
+  } catch (err) {
+    console.error('profile-photo view failed', err);
+    return res.status(500).json({
+      error: 'Unable to render profile photo',
+      detail: err?.message || 'Unknown error',
+    });
+  }
 });
 
 app.post('/profile-photo/sign-upload', async (req, res) => {

@@ -50,6 +50,20 @@ function normalizeDbError(scope, err) {
   return `[${scope}] ${msg}`;
 }
 
+function isMissingColumnError(err, columnName) {
+  const code = String(err?.code || '').trim();
+  const text = `${err?.message || ''} ${err?.details || ''} ${err?.hint || ''}`.toLowerCase();
+  return code === '42703' || text.includes(`column ${columnName.toLowerCase()}`) || text.includes(columnName.toLowerCase());
+}
+
+function normalizeSupabasePlayerRow(row) {
+  return {
+    ...row,
+    role: normalizePlayerRole(row?.role),
+    avatarUrl: String(row?.avatarUrl || row?.avatar_url || '').trim(),
+  };
+}
+
 const DATA_MODE_STORAGE_KEY = 'bfm_data_mode';
 const MOCK_PLAYERS_KEY = 'bfm_mock_players';
 const MOCK_TOURNAMENTS_KEY = 'bfm_mock_tournaments';
@@ -251,6 +265,63 @@ function buildProfilePhotoPath(playerId, fileName) {
   return `profile_photos/${playerId}/${Date.now()}_${safeName}`;
 }
 
+function deriveBackblazeViewEndpoint() {
+  const explicitView = String(import.meta.env.VITE_BACKBLAZE_PROXY_VIEW_URL || '').trim();
+  if (explicitView) return explicitView;
+  const proxyUpload = String(import.meta.env.VITE_BACKBLAZE_PROXY_UPLOAD_URL || '').trim();
+  if (proxyUpload.endsWith('/upload')) {
+    return `${proxyUpload.slice(0, -('/upload'.length))}/view`;
+  }
+  const signEndpoint = String(import.meta.env.VITE_BACKBLAZE_SIGNED_UPLOAD_URL || '').trim();
+  if (signEndpoint.endsWith('/sign-upload')) {
+    return `${signEndpoint.slice(0, -('/sign-upload'.length))}/view`;
+  }
+  return '';
+}
+
+function buildBackblazeViewUrlFromPath(path) {
+  const normalizedPath = String(path || '').trim().replace(/^\/+/, '');
+  if (!normalizedPath) return '';
+  const endpoint = deriveBackblazeViewEndpoint();
+  if (!endpoint) return '';
+  const joiner = endpoint.includes('?') ? '&' : '?';
+  return `${endpoint}${joiner}path=${encodeURIComponent(normalizedPath)}`;
+}
+
+export function resolveProfilePhotoUrl(inputUrl, inputPath = '') {
+  const rawUrl = String(inputUrl || '').trim();
+  if (!rawUrl) return '';
+  if (profilePhotoStorageProvider() !== 'backblaze') return rawUrl;
+  if (/\/profile-photo\/view(\?|$)/.test(rawUrl)) return rawUrl;
+
+  const hinted = String(inputPath || '').trim().replace(/^\/+/, '');
+  if (hinted.startsWith('profile_photos/')) {
+    const proxied = buildBackblazeViewUrlFromPath(hinted);
+    if (proxied) return proxied;
+  }
+
+  try {
+    const parsed = new URL(rawUrl);
+    const marker = '/file/';
+    const idx = parsed.pathname.indexOf(marker);
+    if (idx >= 0) {
+      const filePath = parsed.pathname.slice(idx + marker.length);
+      const segments = filePath.split('/').filter(Boolean);
+      if (segments.length > 1) {
+        const normalizedPath = decodeURIComponent(segments.slice(1).join('/'));
+        if (normalizedPath.startsWith('profile_photos/')) {
+          const proxied = buildBackblazeViewUrlFromPath(normalizedPath);
+          if (proxied) return proxied;
+        }
+      }
+    }
+  } catch {
+    return rawUrl;
+  }
+
+  return rawUrl;
+}
+
 async function uploadProfilePhotoToBackblaze(path, file) {
   const signToken = String(import.meta.env.VITE_BACKBLAZE_SIGNED_UPLOAD_TOKEN || '').trim();
   const proxyEndpointRaw = String(import.meta.env.VITE_BACKBLAZE_PROXY_UPLOAD_URL || '').trim();
@@ -280,7 +351,9 @@ async function uploadProfilePhotoToBackblaze(path, file) {
     if (!proxyUrl) {
       throw new Error('[uploadPlayerProfilePhoto] Backblaze proxy response missing url.');
     }
-    return { url: proxyUrl, path: String(proxyPayload?.path || path) };
+    const finalPath = String(proxyPayload?.path || path);
+    const viewUrl = buildBackblazeViewUrlFromPath(finalPath);
+    return { url: viewUrl || proxyUrl, path: finalPath };
   }
 
   if (!signEndpoint) {
@@ -356,7 +429,8 @@ async function uploadProfilePhotoToBackblaze(path, file) {
     );
   }
 
-  return { url, path };
+  const viewUrl = buildBackblazeViewUrlFromPath(path);
+  return { url: viewUrl || url, path };
 }
 
 /**
@@ -493,6 +567,20 @@ export async function listPlayers() {
       .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
   }
 
+  const preferredWithAvatar = await supabase
+    .from('players')
+    .select('id, name, age, mobile, skill, role, avatar_url')
+    .order('name', { ascending: true });
+
+  if (!preferredWithAvatar.error)
+    return (preferredWithAvatar.data ?? [])
+      .map((p) => normalizeSupabasePlayerRow(p))
+      .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
+
+  if (!isMissingColumnError(preferredWithAvatar.error, 'avatar_url')) {
+    throw new Error(normalizeDbError('listPlayers', preferredWithAvatar.error));
+  }
+
   const preferred = await supabase
     .from('players')
     .select('id, name, age, mobile, skill, role')
@@ -500,7 +588,7 @@ export async function listPlayers() {
 
   if (!preferred.error)
     return (preferred.data ?? [])
-      .map((p) => ({ ...p, role: normalizePlayerRole(p?.role) }))
+      .map((p) => normalizeSupabasePlayerRow(p))
       .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
 
   const fallback = await supabase
@@ -509,11 +597,10 @@ export async function listPlayers() {
     .order('name', { ascending: true });
   if (fallback.error) throw new Error(normalizeDbError('listPlayers', fallback.error));
   return (fallback.data ?? []).map((p) => ({
-    ...p,
+    ...normalizeSupabasePlayerRow(p),
     age: null,
     mobile: '',
     role: 'player',
-    avatarUrl: p?.avatarUrl || '',
   }));
 }
 
@@ -672,7 +759,25 @@ export async function createPlayer(player) {
     return { id: ref.id, ...row, created_at: createdAt };
   }
 
-  const { data, error } = await supabase
+  const withAvatarRes = await supabase
+    .from('players')
+    .insert({
+      name: row.name,
+      age: row.age,
+      mobile: row.mobile,
+      skill: row.skill,
+      role: row.role,
+      avatar_url: row.avatarUrl,
+    })
+    .select('id, name, age, mobile, skill, role, avatar_url')
+    .single();
+
+  if (!withAvatarRes.error) return normalizeSupabasePlayerRow(withAvatarRes.data);
+  if (!isMissingColumnError(withAvatarRes.error, 'avatar_url')) {
+    throw new Error(normalizeDbError('createPlayer', withAvatarRes.error));
+  }
+
+  const fallbackRes = await supabase
     .from('players')
     .insert({
       name: row.name,
@@ -684,8 +789,8 @@ export async function createPlayer(player) {
     .select('id, name, age, mobile, skill, role')
     .single();
 
-  if (error) throw new Error(normalizeDbError('createPlayer', error));
-  return data;
+  if (fallbackRes.error) throw new Error(normalizeDbError('createPlayer', fallbackRes.error));
+  return normalizeSupabasePlayerRow(fallbackRes.data);
 }
 
 /** Update one player by id. */
@@ -720,7 +825,26 @@ export async function updatePlayer(id, player) {
     return { id, ...row };
   }
 
-  const { data, error } = await supabase
+  const withAvatarRes = await supabase
+    .from('players')
+    .update({
+      name: row.name,
+      age: row.age,
+      mobile: row.mobile,
+      skill: row.skill,
+      role: row.role,
+      avatar_url: row.avatarUrl,
+    })
+    .eq('id', id)
+    .select('id, name, age, mobile, skill, role, avatar_url')
+    .single();
+
+  if (!withAvatarRes.error) return normalizeSupabasePlayerRow(withAvatarRes.data);
+  if (!isMissingColumnError(withAvatarRes.error, 'avatar_url')) {
+    throw new Error(normalizeDbError('updatePlayer', withAvatarRes.error));
+  }
+
+  const fallbackRes = await supabase
     .from('players')
     .update({
       name: row.name,
@@ -733,8 +857,8 @@ export async function updatePlayer(id, player) {
     .select('id, name, age, mobile, skill, role')
     .single();
 
-  if (error) throw new Error(normalizeDbError('updatePlayer', error));
-  return data;
+  if (fallbackRes.error) throw new Error(normalizeDbError('updatePlayer', fallbackRes.error));
+  return normalizeSupabasePlayerRow(fallbackRes.data);
 }
 
 /** Delete one player by id. */

@@ -5,6 +5,7 @@ Node.js API for signing Backblaze Native API uploads for profile photos.
 ## Endpoints
 
 - `GET /health`
+- `GET /profile-photo/view?path=profile_photos/...`
 - `POST /profile-photo/sign-upload`
 - `POST /profile-photo/upload` (recommended for browsers to avoid Backblaze CORS)
 
@@ -51,6 +52,11 @@ Proxy response:
 }
 ```
 
+Browser-safe profile photo view request (for private buckets):
+
+- `GET /profile-photo/view?path=profile_photos/<playerId>/<timestamp>_<fileName>`
+- Response: image bytes with `Content-Type` copied from Backblaze
+
 ## Local run
 
 ```bash
@@ -77,6 +83,7 @@ In your frontend `.env`:
 ```env
 VITE_PROFILE_PHOTO_STORAGE=backblaze
 VITE_BACKBLAZE_PROXY_UPLOAD_URL=https://<your-render-service>.onrender.com/profile-photo/upload
+VITE_BACKBLAZE_PROXY_VIEW_URL=https://<your-render-service>.onrender.com/profile-photo/view
 VITE_BACKBLAZE_SIGNED_UPLOAD_TOKEN=<same as BACKBLAZE_SIGN_TOKEN>
 ```
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { resolveProfilePhotoUrl } from '../supabaseAdapter.js';
 
 export default function ProfileScreen({ player, loading, saving, error, onSave }) {
   const [name, setName] = useState('');
@@ -88,7 +89,7 @@ export default function ProfileScreen({ player, loading, saving, error, onSave }
                 <div className="h-14 w-14 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
                   {(avatarPreviewUrl || player?.avatarUrl) ? (
                     <img
-                      src={avatarPreviewUrl || player?.avatarUrl}
+                      src={avatarPreviewUrl || resolveProfilePhotoUrl(player?.avatarUrl)}
                       alt={`${player?.name || 'Player'} avatar`}
                       className="h-full w-full object-cover"
                     />
