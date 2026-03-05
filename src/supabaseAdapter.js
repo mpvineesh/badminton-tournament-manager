@@ -252,14 +252,42 @@ function buildProfilePhotoPath(playerId, fileName) {
 }
 
 async function uploadProfilePhotoToBackblaze(path, file) {
+  const signToken = String(import.meta.env.VITE_BACKBLAZE_SIGNED_UPLOAD_TOKEN || '').trim();
+  const proxyEndpointRaw = String(import.meta.env.VITE_BACKBLAZE_PROXY_UPLOAD_URL || '').trim();
   const signEndpoint = String(import.meta.env.VITE_BACKBLAZE_SIGNED_UPLOAD_URL || '').trim();
-  if (!signEndpoint) {
-    throw new Error(
-      '[uploadPlayerProfilePhoto] Backblaze is enabled, but VITE_BACKBLAZE_SIGNED_UPLOAD_URL is missing.'
-    );
+  const proxyEndpoint =
+    proxyEndpointRaw ||
+    (signEndpoint.endsWith('/sign-upload')
+      ? `${signEndpoint.slice(0, -('/sign-upload'.length))}/upload`
+      : '');
+
+  if (proxyEndpoint) {
+    const proxyHeaders = {
+      'Content-Type': String(file.type || 'application/octet-stream'),
+      'x-upload-path': path,
+    };
+    if (signToken) proxyHeaders.Authorization = `Bearer ${signToken}`;
+    const proxyRes = await fetch(proxyEndpoint, {
+      method: 'POST',
+      headers: proxyHeaders,
+      body: file,
+    });
+    if (!proxyRes.ok) {
+      throw new Error(`[uploadPlayerProfilePhoto] Backblaze proxy upload failed (${proxyRes.status}).`);
+    }
+    const proxyPayload = await proxyRes.json();
+    const proxyUrl = String(proxyPayload?.url || '').trim();
+    if (!proxyUrl) {
+      throw new Error('[uploadPlayerProfilePhoto] Backblaze proxy response missing url.');
+    }
+    return { url: proxyUrl, path: String(proxyPayload?.path || path) };
   }
 
-  const signToken = String(import.meta.env.VITE_BACKBLAZE_SIGNED_UPLOAD_TOKEN || '').trim();
+  if (!signEndpoint) {
+    throw new Error(
+      '[uploadPlayerProfilePhoto] Backblaze is enabled, but upload endpoint is missing.'
+    );
+  }
   const signHeaders = { 'Content-Type': 'application/json' };
   if (signToken) signHeaders.Authorization = `Bearer ${signToken}`;
 

@@ -52,6 +52,16 @@ function toPublicFilePath(path) {
     .join('/');
 }
 
+function assertSignerAuth(req, res) {
+  const signerToken = String(process.env.BACKBLAZE_SIGN_TOKEN || '').trim();
+  if (!signerToken) return true;
+  const authz = String(req.headers.authorization || '');
+  const expected = `Bearer ${signerToken}`;
+  if (authz === expected) return true;
+  res.status(401).json({ error: 'Unauthorized' });
+  return false;
+}
+
 async function b2Authorize({ keyId, appKey }) {
   const auth = Buffer.from(`${keyId}:${appKey}`).toString('base64');
   const res = await fetch('https://api.backblazeb2.com/b2api/v2/b2_authorize_account', {
@@ -81,20 +91,28 @@ async function b2GetUploadUrl({ apiUrl, authToken, bucketId }) {
   return res.json();
 }
 
+async function getBackblazeUploadMeta() {
+  const keyId = readRequiredEnv('BACKBLAZE_KEY_ID');
+  const appKey = readRequiredEnv('BACKBLAZE_APPLICATION_KEY');
+  const bucketId = readRequiredEnv('BACKBLAZE_BUCKET_ID');
+  const bucketName = readRequiredEnv('BACKBLAZE_BUCKET_NAME');
+
+  const auth = await b2Authorize({ keyId, appKey });
+  const upload = await b2GetUploadUrl({
+    apiUrl: auth.apiUrl,
+    authToken: auth.authorizationToken,
+    bucketId,
+  });
+  return { auth, upload, bucketName };
+}
+
 app.get('/health', (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
 app.post('/profile-photo/sign-upload', async (req, res) => {
   try {
-    const signerToken = String(process.env.BACKBLAZE_SIGN_TOKEN || '').trim();
-    if (signerToken) {
-      const authz = String(req.headers.authorization || '');
-      const expected = `Bearer ${signerToken}`;
-      if (authz !== expected) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-    }
+    if (!assertSignerAuth(req, res)) return;
 
     const path = normalizePath(req.body?.path);
     const contentType = String(req.body?.contentType || 'application/octet-stream').trim();
@@ -102,17 +120,7 @@ app.post('/profile-photo/sign-upload', async (req, res) => {
       return res.status(400).json({ error: 'contentType must be an image/* type' });
     }
 
-    const keyId = readRequiredEnv('BACKBLAZE_KEY_ID');
-    const appKey = readRequiredEnv('BACKBLAZE_APPLICATION_KEY');
-    const bucketId = readRequiredEnv('BACKBLAZE_BUCKET_ID');
-    const bucketName = readRequiredEnv('BACKBLAZE_BUCKET_NAME');
-
-    const auth = await b2Authorize({ keyId, appKey });
-    const upload = await b2GetUploadUrl({
-      apiUrl: auth.apiUrl,
-      authToken: auth.authorizationToken,
-      bucketId,
-    });
+    const { auth, upload, bucketName } = await getBackblazeUploadMeta();
 
     const publicPath = toPublicFilePath(path);
     const publicUrl = `${auth.downloadUrl}/file/${bucketName}/${publicPath}`;
@@ -132,6 +140,51 @@ app.post('/profile-photo/sign-upload', async (req, res) => {
     console.error('sign-upload failed', err);
     return res.status(500).json({
       error: 'Unable to prepare Backblaze upload',
+      detail: err?.message || 'Unknown error',
+    });
+  }
+});
+
+app.post('/profile-photo/upload', express.raw({ type: 'image/*', limit: '12mb' }), async (req, res) => {
+  try {
+    if (!assertSignerAuth(req, res)) return;
+
+    const path = normalizePath(req.header('x-upload-path'));
+    const contentType = String(req.header('content-type') || 'application/octet-stream').trim();
+    if (!isImageContentType(contentType)) {
+      return res.status(400).json({ error: 'contentType must be an image/* type' });
+    }
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: 'file body is required' });
+    }
+
+    const { auth, upload, bucketName } = await getBackblazeUploadMeta();
+
+    const upstream = await fetch(upload.uploadUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: upload.authorizationToken,
+        'X-Bz-File-Name': toB2HeaderFileName(path),
+        'Content-Type': contentType,
+        'X-Bz-Content-Sha1': 'do_not_verify',
+      },
+      body: req.body,
+    });
+    if (!upstream.ok) {
+      const body = await upstream.text().catch(() => '');
+      return res.status(502).json({
+        error: 'Backblaze upload failed',
+        detail: `status=${upstream.status} ${body}`,
+      });
+    }
+
+    const publicPath = toPublicFilePath(path);
+    const publicUrl = `${auth.downloadUrl}/file/${bucketName}/${publicPath}`;
+    return res.status(200).json({ url: publicUrl, path });
+  } catch (err) {
+    console.error('proxy-upload failed', err);
+    return res.status(500).json({
+      error: 'Unable to upload profile photo',
       detail: err?.message || 'Unknown error',
     });
   }
