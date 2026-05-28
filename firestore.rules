@@ -1,0 +1,54 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helpers
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+
+    // Players: public read, authenticated create. Only creator or admin may update/delete.
+    match /players/{playerId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && (
+        // The rule expects documents to optionally include `created_by_uid`.
+        // If your app doesn't set that field yet, update the app to set it on create,
+        // or remove this check to allow broader edits.
+        resource.data.created_by_uid == request.auth.uid || isAdmin()
+      );
+    }
+
+    // Tournaments: public read, authenticated create where creator UID matches.
+    // Updates/deletes allowed to creator or admin.
+    match /tournaments/{tournamentId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.created_by_uid == request.auth.uid;
+      allow update, delete: if signedIn() && (resource.data.created_by_uid == request.auth.uid || isAdmin());
+    }
+
+    // Tournament snapshots: require auth to list/read snapshots, creators may create.
+    match /tournament_snapshots/{snapshotId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.tournament_id is string;
+      allow delete: if isAdmin();
+    }
+
+    // Predictions: only authenticated users may write; users should set `predictor_uid` on create.
+    match /predictions/{predictionId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.predictor_uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Skill suggestions: public read, auth create, admin delete.
+    match /skill_suggestions/{suggId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow delete: if isAdmin();
+    }
+
+    // Default: deny everything else.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

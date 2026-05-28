@@ -14,13 +14,16 @@ import PlayerPickerModal from './components/PlayerPickerModal.jsx';
 import AppHeader from './components/AppHeader.jsx';
 import HomeScreen from './components/HomeScreen.jsx';
 import PlayersScreen from './components/PlayersScreen.jsx';
+import PlayerStatsScreen from './components/PlayerStatsScreen.jsx';
+import ScoreboardScreen from './components/ScoreboardScreen.jsx';
 import TournamentsScreen from './components/TournamentsScreen.jsx';
 import LoginScreen from './components/LoginScreen.jsx';
 import TournamentDetailsScreen from './components/TournamentDetailsScreen.jsx';
+import TournamentSettingsScreen from './components/TournamentSettingsScreen.jsx';
 import ProfileScreen from './components/ProfileScreen.jsx';
 import SkillLevelScreen from './components/SkillLevelScreen.jsx';
 import PredictionsScreen from './components/PredictionsScreen.jsx';
-import { roundRobin, toIsoLocal, computeStandings } from './utils/tournament.js';
+import { roundRobin, toIsoLocal, computeStandings, isoDateToday } from './utils/tournament.js';
 import {
   initAnalytics,
   setAnalyticsUser,
@@ -72,10 +75,13 @@ export default function App() {
     'home',
     'fixture',
     'players',
+    'player-stats',
     'profile',
     'skill-level',
     'predictions',
     'tournaments',
+    'tournament-settings',
+    'scoreboard',
   ]);
   const t = useTournamentState();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -129,6 +135,8 @@ export default function App() {
   const [predictionSaving, setPredictionSaving] = useState(false);
   const [predictionError, setPredictionError] = useState('');
   const [isAdminUser, setIsAdminUser] = useState(false);
+  const [selectedPlayerStatsId, setSelectedPlayerStatsId] = useState('');
+  const [savingTournamentSettings, setSavingTournamentSettings] = useState(false);
   const autoSemisInProgressRef = useRef(false);
   const menuRef = useRef(null);
   const messageTopRef = useRef(null);
@@ -166,11 +174,18 @@ export default function App() {
       activeMenu === 'tournaments' ||
       activeMenu === 'home' ||
       activeMenu === 'tournament' ||
-      activeMenu === 'predictions'
+      activeMenu === 'predictions' ||
+      activeMenu === 'player-stats' ||
+      activeMenu === 'scoreboard'
     ) {
       refreshTournamentsList();
     }
   }, [activeMenu]);
+
+  const selectedPlayerForStats = React.useMemo(
+    () => (playersDbList || []).find((p) => p?.id === selectedPlayerStatsId) || null,
+    [playersDbList, selectedPlayerStatsId]
+  );
 
   useEffect(() => {
     if (!isLoggedIn || activeMenu !== 'profile') return;
@@ -727,6 +742,12 @@ export default function App() {
     setTournamentsError('');
     setSaveNotice('');
     try {
+      if (!isAdminUser && !isFutureEventDateForNonAdmin(t.eventDate)) {
+        const msg = `Only admins can create tournaments for today/past dates. Choose a date after ${isoDateToday()}.`;
+        setTournamentsError(msg);
+        t.setError(msg);
+        return;
+      }
       const tournamentName = t.tournamentName || `Tournament ${new Date().toLocaleString()}`;
       const creatorMobile = getCurrentUserMobileNormalized();
       const existing = fixtureTournamentId
@@ -824,6 +845,76 @@ export default function App() {
     }
   }
 
+  async function openTournamentSettings(id) {
+    setTournamentsError('');
+    try {
+      const data = await loadTournament(id);
+      setSelectedTournament(data);
+      setSelectedMatchRef(null);
+      setTournamentView('list');
+      setActiveMenu('tournament-settings');
+    } catch (e) {
+      console.error(e);
+      setTournamentsError(e?.message || 'Unable to load tournament settings.');
+    }
+  }
+
+  async function saveTournamentSettings(updates) {
+    if (!isAdminUser) {
+      setTournamentsError('Only admin can update tournament settings.');
+      return;
+    }
+    if (!selectedTournament?.id) {
+      setTournamentsError('Unable to update settings: tournament not found.');
+      return;
+    }
+
+    setSavingTournamentSettings(true);
+    setTournamentsError('');
+    try {
+      const next = {
+        ...selectedTournament,
+        name: String(updates?.name || selectedTournament.name || '').trim(),
+        eventDate: String(updates?.eventDate || selectedTournament.eventDate || '').trim(),
+        mode: String(updates?.mode || selectedTournament.mode || 'doubles'),
+        numPools: Math.max(0, Number(updates?.numPools ?? selectedTournament.numPools) || 0),
+        membersPerGroup: Math.max(
+          0,
+          Number(updates?.membersPerGroup ?? selectedTournament.membersPerGroup) || 0
+        ),
+        groupGamesBetweenGroups: Math.max(
+          0,
+          Number(
+            updates?.groupGamesBetweenGroups ?? selectedTournament.groupGamesBetweenGroups
+          ) || 0
+        ),
+        pointSystem: {
+          ...(selectedTournament.pointSystem || {}),
+          ...(updates?.pointSystem || {}),
+        },
+      };
+      next.status = deriveTournamentStatus(next);
+      next.winnerTeamId = next.mode === 'group'
+        ? getGroupWinnerTeamId(next)
+        : next.winnerTeamId || null;
+
+      await updateTournament(next.id, {
+        ...next,
+        name: next.name,
+        status: next.status,
+      });
+
+      setSelectedTournament(next);
+      await refreshTournamentsList();
+      setSaveNotice('Tournament settings updated successfully.');
+    } catch (e) {
+      console.error(e);
+      setTournamentsError(e?.message || 'Unable to save tournament settings.');
+    } finally {
+      setSavingTournamentSettings(false);
+    }
+  }
+
   function getTournamentMatches(tournament) {
     const groups = (tournament?.groupMatches || []).map((m) => ({
       ...m,
@@ -838,6 +929,12 @@ export default function App() {
       ? [{ ...tournament.finalMatch, stage: 'Final' }]
       : [];
     return [...groups, ...semis, ...finals];
+  }
+
+  function isFutureEventDateForNonAdmin(eventDate) {
+    const raw = String(eventDate || '').trim();
+    if (!raw) return false;
+    return raw > isoDateToday();
   }
 
   function getCurrentPointSystem() {
@@ -1016,8 +1113,10 @@ export default function App() {
     setTournamentView('match');
   }
 
-  async function saveMatchTracking() {
-    if (!selectedTournament || !selectedMatchRef) return;
+  async function saveMatchTracking(meta = {}) {
+    if (!selectedTournament) return;
+    const targetRef = meta?.ref || selectedMatchRef;
+    if (!targetRef) return;
     if (selectedTournament.status === 'Completed' && !isAdminUser) {
       setTournamentsError('Only admin can edit scores for completed tournaments.');
       return;
@@ -1029,15 +1128,26 @@ export default function App() {
     setSavingMatch(true);
     setTournamentsError('');
     try {
-      const existingMatch = findMatchByRef(selectedTournament, selectedMatchRef);
+      const existingMatch = findMatchByRef(selectedTournament, targetRef);
       const updater = getLoggedInPlayerFromList();
       const scoreUpdateMeta = {
         scoreUpdatedAt: new Date().toISOString(),
         scoreUpdatedByMobile: getCurrentUserMobileNormalized() || '',
         scoreUpdatedByName: String(updater?.name || '').trim(),
       };
-      const scoreA = matchScoreA === '' ? null : Number(matchScoreA);
-      const scoreB = matchScoreB === '' ? null : Number(matchScoreB);
+      const servingMeta = {
+        servingSide: meta?.servingSide === 'B' ? 'B' : 'A',
+        servingPlayerIndexA: Number(meta?.servingPlayerIndexA) === 1 ? 1 : 0,
+        servingPlayerIndexB: Number(meta?.servingPlayerIndexB) === 1 ? 1 : 0,
+      };
+      const scoreASource = Object.prototype.hasOwnProperty.call(meta, 'scoreA')
+        ? meta.scoreA
+        : matchScoreA;
+      const scoreBSource = Object.prototype.hasOwnProperty.call(meta, 'scoreB')
+        ? meta.scoreB
+        : matchScoreB;
+      const scoreA = scoreASource === '' || scoreASource == null ? null : Number(scoreASource);
+      const scoreB = scoreBSource === '' || scoreBSource == null ? null : Number(scoreBSource);
       let winnerTeamId = null;
       let status = 'Pending';
       if (
@@ -1052,27 +1162,34 @@ export default function App() {
           if (scoreA > scoreB) winnerTeamId = existingMatch?.teamAId || null;
           else if (scoreB > scoreA) winnerTeamId = existingMatch?.teamBId || null;
           status = winnerTeamId ? 'Completed' : 'Pending';
+        } else {
+          status = 'Live';
         }
+      } else if (
+        existingMatch?.status === 'Live' &&
+        (scoreA != null || scoreB != null)
+      ) {
+        status = 'Live';
       }
 
       const next = { ...selectedTournament };
-      if (selectedMatchRef.stage === 'Group') {
+      if (targetRef.stage === 'Group') {
         next.groupMatches = (next.groupMatches || []).map((m) =>
-          m.id === selectedMatchRef.id
-            ? { ...m, scoreA, scoreB, winnerTeamId, status, ...scoreUpdateMeta }
+          m.id === targetRef.id
+            ? { ...m, scoreA, scoreB, winnerTeamId, status, ...scoreUpdateMeta, ...servingMeta }
             : m
         );
-      } else if (selectedMatchRef.stage === 'Semifinal') {
+      } else if (targetRef.stage === 'Semifinal') {
         next.semiMatches = (next.semiMatches || []).map((m) =>
-          m.id === selectedMatchRef.id
-            ? { ...m, scoreA, scoreB, winnerTeamId, status, ...scoreUpdateMeta }
+          m.id === targetRef.id
+            ? { ...m, scoreA, scoreB, winnerTeamId, status, ...scoreUpdateMeta, ...servingMeta }
             : m
         );
         const autoFinal = buildFinalFromSemis(next.semiMatches || [], next.finalMatch || null);
         if (autoFinal) {
           next.finalMatch = autoFinal;
         }
-      } else if (selectedMatchRef.stage === 'Final' && next.finalMatch?.id === selectedMatchRef.id) {
+      } else if (targetRef.stage === 'Final' && next.finalMatch?.id === targetRef.id) {
         next.finalMatch = {
           ...next.finalMatch,
           scoreA,
@@ -1080,11 +1197,12 @@ export default function App() {
           winnerTeamId,
           status,
           ...scoreUpdateMeta,
+          ...servingMeta,
         };
       }
       next.lastScoreUpdate = {
-        stage: selectedMatchRef.stage,
-        matchId: selectedMatchRef.id,
+        stage: targetRef.stage,
+        matchId: targetRef.id,
         ...scoreUpdateMeta,
       };
       next.status = deriveTournamentStatus(next);
@@ -2141,6 +2259,9 @@ export default function App() {
     if (stepNo === 1) {
       if (!String(t.tournamentName || '').trim()) return 'Please enter a tournament name.';
       if (!t.eventDate) return 'Please choose an event date.';
+      if (!isAdminUser && !isFutureEventDateForNonAdmin(t.eventDate)) {
+        return `Only admins can create tournaments for today/past dates. Choose a date after ${isoDateToday()}.`;
+      }
       if (!Number.isInteger(Number(t.numPools)) || Number(t.numPools) < 1) {
         return 'Number of groups/pools must be at least 1.';
       }
@@ -2294,12 +2415,49 @@ export default function App() {
   useEffect(() => {
     const hasMessage = Boolean(t.error || tournamentsError || saveNotice);
     if (!hasMessage) return;
-    if (messageTopRef.current?.scrollIntoView) {
-      messageTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const run = () => {
+      const anchor = messageTopRef.current;
+      if (!anchor) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      const header = document.querySelector('header.sticky');
+      const headerHeight = header ? header.getBoundingClientRect().height : 0;
+      const top = Math.max(
+        0,
+        window.scrollY + anchor.getBoundingClientRect().top - headerHeight - 12
+      );
+      window.scrollTo({ top, behavior: 'smooth' });
+    };
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(run);
     } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      run();
     }
   }, [t.error, tournamentsError, saveNotice]);
+
+  useEffect(() => {
+    if (activeMenu !== 'player-stats') return;
+    const run = () => {
+      const anchor = messageTopRef.current;
+      if (!anchor) {
+        window.scrollTo({ top: 0, behavior: 'auto' });
+        return;
+      }
+      const header = document.querySelector('header.sticky');
+      const headerHeight = header ? header.getBoundingClientRect().height : 0;
+      const top = Math.max(
+        0,
+        window.scrollY + anchor.getBoundingClientRect().top - headerHeight - 12
+      );
+      window.scrollTo({ top, behavior: 'auto' });
+    };
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(run);
+    } else {
+      run();
+    }
+  }, [activeMenu, selectedPlayerStatsId]);
 
   function goToNextStep() {
     t.setError('');
@@ -2413,6 +2571,7 @@ export default function App() {
         setMenuOpen={setMenuOpen}
         authBusy={authBusy}
         isLoggedIn={isLoggedIn}
+        isAdmin={isAdminUser}
         onHome={() => {
           setMenuOpen(false);
           setActiveMenu('home');
@@ -2442,6 +2601,10 @@ export default function App() {
         onProfile={() => {
           setMenuOpen(false);
           setActiveMenu('profile');
+        }}
+        onScoreboard={() => {
+          setMenuOpen(false);
+          setActiveMenu('scoreboard');
         }}
         onTournaments={() => {
           setMenuOpen(false);
@@ -2494,12 +2657,25 @@ export default function App() {
               setActiveMenu('tournaments');
             }}
           />
+        ) : activeMenu === 'tournament-settings' ? (
+          <TournamentSettingsScreen
+            tournament={selectedTournament}
+            onBack={() => setActiveMenu('tournaments')}
+            onSave={saveTournamentSettings}
+            saving={savingTournamentSettings}
+            error={tournamentsError}
+          />
         ) : activeMenu === 'players' ? (
           <PlayersScreen
             players={playersDbList}
             loading={playersDbLoading}
             error={playersDbError}
             isAdmin={isAdminUser}
+            onOpenStats={(player) => {
+              if (!player?.id) return;
+              setSelectedPlayerStatsId(player.id);
+              setActiveMenu('player-stats');
+            }}
             onRefresh={refreshPlayersList}
             onAddPlayer={handleAddPlayerToDb}
             onUpdatePlayer={handleUpdatePlayerInDb}
@@ -2507,6 +2683,23 @@ export default function App() {
             saving={playersDbSaving}
             updatingId={playersDbUpdatingId}
             deletingId={playersDbDeletingId}
+          />
+        ) : activeMenu === 'player-stats' ? (
+          <PlayerStatsScreen
+            player={selectedPlayerForStats}
+            players={playersDbList}
+            tournaments={tournamentsList}
+            tournamentsLoading={tournamentsLoading}
+            tournamentsError={tournamentsError}
+            onBack={() => setActiveMenu('players')}
+            onOpenTournament={openTournamentDetailsFromHome}
+          />
+        ) : activeMenu === 'scoreboard' ? (
+          <ScoreboardScreen
+            tournaments={tournamentsList}
+            loading={tournamentsLoading}
+            error={tournamentsError}
+            onRefresh={refreshTournamentsList}
           />
         ) : activeMenu === 'profile' ? (
           <ProfileScreen
@@ -2555,6 +2748,7 @@ export default function App() {
             canDeleteTournament={canDeleteTournament}
             getTournamentCreatorName={getTournamentCreatorName}
             onOpenTournamentDetails={openTournamentDetailsFromHome}
+            onOpenTournamentSettings={openTournamentSettings}
             onOpenTournamentFixture={async (id) => {
               await t.loadTournamentById(id);
               setFixtureTournamentId(id);

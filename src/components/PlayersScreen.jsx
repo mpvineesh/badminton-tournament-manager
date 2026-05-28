@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { resolveProfilePhotoUrl } from '../supabaseAdapter.js';
 
 const initialForm = {
   name: '',
@@ -13,6 +14,7 @@ export default function PlayersScreen({
   loading,
   error,
   isAdmin,
+  onOpenStats,
   onRefresh,
   onAddPlayer,
   onUpdatePlayer,
@@ -85,6 +87,23 @@ export default function PlayersScreen({
     }
   }
 
+  function renderAvatar(player, sizeClass = 'h-10 w-10') {
+    const avatarUrl = resolveProfilePhotoUrl(player?.avatarUrl);
+    const label = String(player?.name || 'Player').trim();
+    const initial = label ? label.charAt(0).toUpperCase() : 'P';
+    return (
+      <div className={`${sizeClass} overflow-hidden rounded-full border border-slate-200 bg-slate-50`}>
+        {avatarUrl ? (
+          <img src={avatarUrl} alt={`${label || 'Player'} avatar`} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
+            {initial}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <section className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-white to-cyan-50/40 p-4 shadow-sm">
@@ -138,7 +157,14 @@ export default function PlayersScreen({
               {players.map((p) => {
                 const editing = editId === p.id;
                 return (
-                  <div key={p.id} className="rounded-lg border px-3 py-2.5 bg-white">
+                  <div
+                    key={p.id}
+                    className={`rounded-lg border px-3 py-2.5 bg-white ${editing ? '' : 'cursor-pointer hover:bg-slate-50'}`}
+                    onClick={() => {
+                      if (editing) return;
+                      onOpenStats?.(p);
+                    }}
+                  >
                     {editing ? (
                       <div className="space-y-1.5">
                         <input
@@ -207,25 +233,38 @@ export default function PlayersScreen({
                       </div>
                     ) : (
                       <>
-                        <div className="font-semibold">{p.name}</div>
-                        <div className="mt-0.5 text-sm text-slate-600 leading-6">
-                          Age: {p.age ?? '-'} | Skill: {p.skill}
-                        </div>
-                        <div className="text-sm text-slate-600 leading-6">Mobile: {p.mobile || '-'}</div>
-                        <div className="text-sm text-slate-600 leading-6">
-                          Role: {p.role === 'admin' ? 'Admin' : 'Player'}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold">{p.name}</div>
+                            <div className="mt-0.5 text-sm text-slate-600 leading-6">
+                              Age: {p.age ?? '-'} | Skill: {p.skill}
+                            </div>
+                            <div className="text-sm text-slate-600 leading-6">Mobile: {p.mobile || '-'}</div>
+                            {isAdmin && (
+                              <div className="text-sm text-slate-600 leading-6">
+                                Role: {p.role === 'admin' ? 'Admin' : 'Player'}
+                              </div>
+                            )}
+                          </div>
+                          {renderAvatar(p, 'h-14 w-14')}
                         </div>
                         {isAdmin && (
                           <div className="mt-2 flex gap-1.5">
                             <button
                               className="flex-1 px-2 py-1 rounded-lg border text-sm hover:bg-slate-100"
-                              onClick={() => startEdit(p)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                startEdit(p);
+                              }}
                             >
                               Edit
                             </button>
                             <button
                               className="flex-1 px-2 py-1 rounded-lg border text-sm text-red-700 hover:bg-red-50"
-                              onClick={() => onDeletePlayer(p.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeletePlayer(p.id);
+                              }}
                               disabled={deletingId === p.id}
                             >
                               {deletingId === p.id ? 'Deleting…' : 'Delete'}
@@ -243,11 +282,12 @@ export default function PlayersScreen({
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-left text-slate-500">
                   <tr>
+                    <th className="p-2">Photo</th>
                     <th className="p-2">Name</th>
                     <th className="p-2">Age</th>
                     <th className="p-2">Mobile</th>
                     <th className="p-2">Skill Level</th>
-                    <th className="p-2">Role</th>
+                    {isAdmin && <th className="p-2">Role</th>}
                     <th className="p-2 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -255,7 +295,17 @@ export default function PlayersScreen({
                   {players.map((p) => {
                     const editing = editId === p.id;
                     return (
-                      <tr key={p.id} className="border-t">
+                      <tr
+                        key={p.id}
+                        className={`border-t ${editing ? '' : 'cursor-pointer hover:bg-slate-50'}`}
+                        onClick={() => {
+                          if (editing) return;
+                          onOpenStats?.(p);
+                        }}
+                      >
+                        <td className="p-2 align-middle">
+                          {renderAvatar(p, 'h-9 w-9')}
+                        </td>
                         <td className="p-2">
                           {editing ? (
                             <input
@@ -313,22 +363,24 @@ export default function PlayersScreen({
                             p.skill
                           )}
                         </td>
-                        <td className="p-2">
-                          {editing ? (
-                            <select
-                              className="w-28 px-2 py-1 border rounded bg-white"
-                              value={editForm.role}
-                              onChange={(e) =>
-                                setEditForm((f) => ({ ...f, role: e.target.value }))
-                              }
-                            >
-                              <option value="player">Player</option>
-                              <option value="admin">Admin</option>
-                            </select>
-                          ) : (
-                            p.role === 'admin' ? 'Admin' : 'Player'
-                          )}
-                        </td>
+                        {isAdmin && (
+                          <td className="p-2">
+                            {editing ? (
+                              <select
+                                className="w-28 px-2 py-1 border rounded bg-white"
+                                value={editForm.role}
+                                onChange={(e) =>
+                                  setEditForm((f) => ({ ...f, role: e.target.value }))
+                                }
+                              >
+                                <option value="player">Player</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                            ) : (
+                              p.role === 'admin' ? 'Admin' : 'Player'
+                            )}
+                          </td>
+                        )}
                         <td className="p-2 text-right">
                           {isAdmin &&
                             (editing ? (
@@ -351,13 +403,19 @@ export default function PlayersScreen({
                               <div className="inline-flex gap-2">
                                 <button
                                   className="px-2 py-1 rounded-lg border hover:bg-slate-100"
-                                  onClick={() => startEdit(p)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    startEdit(p);
+                                  }}
                                 >
                                   Edit
                                 </button>
                                 <button
                                   className="px-2 py-1 rounded-lg border text-red-700 hover:bg-red-50"
-                                  onClick={() => onDeletePlayer(p.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeletePlayer(p.id);
+                                  }}
                                   disabled={deletingId === p.id}
                                 >
                                   {deletingId === p.id ? 'Deleting…' : 'Delete'}

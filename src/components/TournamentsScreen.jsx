@@ -1,5 +1,6 @@
 import React from 'react';
 import { computeStandings } from '../utils/tournament.js';
+import MatchScoringScreen from './MatchScoringScreen.jsx';
 
 export default function TournamentsScreen({
   appError,
@@ -13,6 +14,7 @@ export default function TournamentsScreen({
   canDeleteTournament,
   getTournamentCreatorName,
   onOpenTournamentDetails,
+  onOpenTournamentSettings,
   onOpenTournamentFixture,
   handleTournamentDelete,
   openTournamentLiveView,
@@ -72,8 +74,8 @@ export default function TournamentsScreen({
     });
   const getTournamentStatusSortPriority = (status) => {
     if (status === 'Live') return 0;
-    if (status === 'Completed') return 1;
-    if (status === 'Upcoming') return 2;
+    if (status === 'Upcoming') return 1;
+    if (status === 'Completed') return 2;
     return 3;
   };
   const orderedTournaments = [...(tournamentsList || [])].sort((a, b) => {
@@ -170,12 +172,157 @@ export default function TournamentsScreen({
         : match.winnerTeamId === match.teamBId;
     return isWinner ? `🏆 ${label}` : label;
   };
+  const isScorableMatch = (status) =>
+    status === 'Live' || status === 'Upcoming' || status === 'Pending' || !status;
+  const openMatchFromWidget = (match) => {
+    if (!match?.id || !match?.stage) return;
+    openMatchTracking(
+      { stage: match.stage, id: match.id },
+      isScorableMatch(match.status) ? (match.status === 'Live' ? 'open' : 'start') : 'open'
+    );
+  };
+  const [serveSide, setServeSide] = React.useState('A');
+  const [servePlayerA, setServePlayerA] = React.useState(0);
+  const [servePlayerB, setServePlayerB] = React.useState(0);
+  const [historyStack, setHistoryStack] = React.useState([]);
+  const [quickScores, setQuickScores] = React.useState({});
+  const [posterNotice, setPosterNotice] = React.useState('');
+
+  const activeMatch =
+    tournamentView === 'match' && selectedTournament && selectedMatchRef
+      ? findMatchByRef(selectedTournament, selectedMatchRef)
+      : null;
+
+  React.useEffect(() => {
+    if (!activeMatch) return;
+    setServeSide(activeMatch?.servingSide === 'B' ? 'B' : 'A');
+    setServePlayerA(Number(activeMatch?.servingPlayerIndexA) === 1 ? 1 : 0);
+    setServePlayerB(Number(activeMatch?.servingPlayerIndexB) === 1 ? 1 : 0);
+    setHistoryStack([]);
+  }, [activeMatch?.id, selectedTournament?.id, tournamentView]);
+
+  React.useEffect(() => {
+    setQuickScores({});
+  }, [selectedTournament?.id, tournamentView]);
+
+  const normalizeScoreValue = (value) => {
+    if (value === '' || value == null) return null;
+    const n = Number(value);
+    if (!Number.isFinite(n)) return null;
+    return Math.max(0, Math.floor(n));
+  };
+
+  const computeOutcome = (match, scoreA, scoreB) => {
+    const a = normalizeScoreValue(scoreA);
+    const b = normalizeScoreValue(scoreB);
+    if (a == null || b == null) return { winnerId: '', status: 'Live' };
+    const diff = Math.abs(a - b);
+    const maxScore = Math.max(a, b);
+    if (maxScore >= 21 && diff >= 2) {
+      if (a > b) return { winnerId: match?.teamAId || '', status: 'Completed' };
+      if (b > a) return { winnerId: match?.teamBId || '', status: 'Completed' };
+    }
+    return { winnerId: '', status: 'Live' };
+  };
+
+  const buildPosterPrompt = (row) => {
+    const payload = row?.payload || {};
+    const teams = Array.isArray(payload?.teams) ? payload.teams : [];
+    const pools = Array.isArray(payload?.pools) ? payload.pools : [];
+    const teamsById = Object.fromEntries(teams.map((tm) => [tm.id, tm]));
+    const matches = [
+      ...(Array.isArray(payload?.groupMatches) ? payload.groupMatches : []),
+      ...(Array.isArray(payload?.semiMatches) ? payload.semiMatches : []),
+      ...(payload?.finalMatch ? [payload.finalMatch] : []),
+    ];
+    const teamLines = teams.slice(0, 24).map((tm, idx) => `${idx + 1}. ${tm?.name || `Team ${idx + 1}`}`);
+    const groupLines = pools
+      .map((pool, idx) => {
+        const memberNames = (pool?.teamIds || [])
+          .map((id) => String(teamsById[id]?.name || '').trim())
+          .filter(Boolean);
+        const groupName = String(pool?.name || `Group ${idx + 1}`).trim();
+        return memberNames.length > 0
+          ? `${groupName}: ${memberNames.join(', ')}`
+          : `${groupName}: TBD`;
+      })
+      .slice(0, 12);
+    const heroTitle = String(row?.name || payload?.name || 'Badminton Tournament').trim();
+    const dateText = payload?.eventDate || row?.created_at || 'TBD';
+    const statusText = row?.status || payload?.status || 'Upcoming';
+    const modeText = payload?.mode || 'doubles';
+    const matchesCount = matches.length;
+    return [
+      'Create a premium, modern badminton tournament poster. Below are the tournament details',
+      `Tournament Name: Wihtefeather Badminton Tournament`,
+      `Location: Whitefeather Indoor Court`,
+      `Date: ${dateText}`,
+      `Format: ${modeText}`,
+      `Total Teams: ${teams.length}`,
+      `Total Matches: ${matchesCount}`,
+      '',
+      'Visual style:',
+      '- Dynamic sporty look, clean typography, high contrast',
+      '- Add badminton shuttle/court accents',
+      '- Keep composition readable for social media share',
+      '',
+      teamLines.length > 0 ? 'Teams list:' : 'Teams list: TBD',
+      ...(teamLines.length > 0 ? teamLines : []),
+      '',
+      groupLines.length > 0 ? 'Groups and Members:' : 'Groups and Members: N/A',
+      ...(groupLines.length > 0 ? groupLines : []),
+      '',
+      'Output:',
+      '- One vertical poster (1080x1350)',
+    ].join('\n');
+  };
+
+  const handlePosterPrompt = async (row) => {
+    try {
+      const prompt = buildPosterPrompt(row);
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(prompt);
+      }
+      window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer');
+      setPosterNotice('Poster prompt copied. ChatGPT opened in a new tab.');
+    } catch {
+      setPosterNotice('Could not auto-copy. Opened ChatGPT, please copy prompt manually.');
+      window.open('https://chatgpt.com', '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const quickScoreKey = (m) => `${m?.stage || 'X'}:${m?.id || 'Y'}`;
+  const getQuickScore = (m, side) => {
+    const key = quickScoreKey(m);
+    const current = quickScores[key];
+    if (current && Object.prototype.hasOwnProperty.call(current, side)) {
+      return current[side];
+    }
+    if (side === 'a') return m?.scoreA ?? '';
+    return m?.scoreB ?? '';
+  };
+  const setQuickScore = (m, side, value) => {
+    const key = quickScoreKey(m);
+    setQuickScores((prev) => ({
+      ...prev,
+      [key]: {
+        a: Object.prototype.hasOwnProperty.call(prev[key] || {}, 'a') ? prev[key].a : (m?.scoreA ?? ''),
+        b: Object.prototype.hasOwnProperty.call(prev[key] || {}, 'b') ? prev[key].b : (m?.scoreB ?? ''),
+        [side]: value,
+      },
+    }));
+  };
 
   return (
     <section className="space-y-4">
       {(appError || tournamentsError) && (
         <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800">
           {appError || tournamentsError}
+        </div>
+      )}
+      {posterNotice && (
+        <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
+          {posterNotice}
         </div>
       )}
 
@@ -244,6 +391,22 @@ export default function TournamentsScreen({
                         >
                           Points
                         </button>
+                        {isAdminUser && (
+                          <button
+                            className="px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
+                            onClick={() => handlePosterPrompt(row)}
+                          >
+                            Poster
+                          </button>
+                        )}
+                        {isAdminUser && (
+                          <button
+                            className="px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
+                            onClick={() => onOpenTournamentSettings?.(row.id)}
+                          >
+                            Settings
+                          </button>
+                        )}
                         {canDeleteTournament?.(row) && (
                           <button
                             className="px-2 py-1.5 rounded-lg border text-red-700 hover:bg-red-50 text-sm"
@@ -331,6 +494,22 @@ export default function TournamentsScreen({
                               >
                                 Point Table
                               </button>
+                              {isAdminUser && (
+                                <button
+                                  className="px-2 py-1 rounded-lg border hover:bg-slate-100"
+                                  onClick={() => handlePosterPrompt(row)}
+                                >
+                                  Poster Prompt
+                                </button>
+                              )}
+                              {isAdminUser && (
+                                <button
+                                  className="px-2 py-1 rounded-lg border hover:bg-slate-100"
+                                  onClick={() => onOpenTournamentSettings?.(row.id)}
+                                >
+                                  Settings
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -371,7 +550,7 @@ export default function TournamentsScreen({
                   <div
                     key={`${m.stage}-${m.id}`}
                     className="rounded-lg border p-3 cursor-pointer"
-                    onClick={() => openMatchTracking({ stage: m.stage, id: m.id })}
+                    onClick={() => openMatchFromWidget(m)}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="text-xs text-slate-500">{m.stage}</div>
@@ -393,27 +572,51 @@ export default function TournamentsScreen({
                       Score: {m.scoreA ?? '-'} : {m.scoreB ?? '-'}
                     </div>
                     <div className="mt-3">
-                      {m.status !== 'Completed' && m.status !== 'Live' ? (
+                      <div className="mb-2 grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          value={getQuickScore(m, 'a')}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setQuickScore(m, 'a', e.target.value)}
+                          className="w-full rounded-lg border px-2 py-1 text-sm"
+                          placeholder="A"
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          value={getQuickScore(m, 'b')}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setQuickScore(m, 'b', e.target.value)}
+                          className="w-full rounded-lg border px-2 py-1 text-sm"
+                          placeholder="B"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
                         <button
                           className="w-full px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            openMatchTracking({ stage: m.stage, id: m.id }, 'start');
+                            saveMatchTracking({
+                              ref: { stage: m.stage, id: m.id },
+                              scoreA: getQuickScore(m, 'a'),
+                              scoreB: getQuickScore(m, 'b'),
+                            });
                           }}
+                          disabled={savingMatch}
                         >
-                          Start
+                          {savingMatch ? 'Saving...' : 'Save Score'}
                         </button>
-                      ) : (
                         <button
                           className="w-full px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            openMatchTracking({ stage: m.stage, id: m.id });
+                            openMatchFromWidget(m);
                           }}
                         >
-                          {m.status === 'Live' ? 'Open' : 'View'}
+                          {isScorableMatch(m.status) ? 'Live Scoring' : 'View'}
                         </button>
-                      )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -442,7 +645,7 @@ export default function TournamentsScreen({
                       <tr
                         key={`${m.stage}-${m.id}`}
                         className="border-t cursor-pointer hover:bg-slate-50"
-                        onClick={() => openMatchTracking({ stage: m.stage, id: m.id })}
+                        onClick={() => openMatchFromWidget(m)}
                       >
                         <td className="p-2">{m.stage}</td>
                         <td className="p-2">
@@ -461,27 +664,49 @@ export default function TournamentsScreen({
                           </span>
                         </td>
                         <td className="p-2 text-right">
-                          {m.status !== 'Completed' && m.status !== 'Live' ? (
+                          <div className="inline-flex items-center gap-2">
+                            <input
+                              type="number"
+                              min={0}
+                              value={getQuickScore(m, 'a')}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setQuickScore(m, 'a', e.target.value)}
+                              className="w-14 rounded border px-1.5 py-1 text-xs"
+                              placeholder="A"
+                            />
+                            <input
+                              type="number"
+                              min={0}
+                              value={getQuickScore(m, 'b')}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setQuickScore(m, 'b', e.target.value)}
+                              className="w-14 rounded border px-1.5 py-1 text-xs"
+                              placeholder="B"
+                            />
                             <button
-                              className="px-2 py-1 rounded-lg border hover:bg-slate-100"
+                              className="px-2 py-1 rounded-lg border hover:bg-slate-100 text-xs"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                openMatchTracking({ stage: m.stage, id: m.id }, 'start');
+                                saveMatchTracking({
+                                  ref: { stage: m.stage, id: m.id },
+                                  scoreA: getQuickScore(m, 'a'),
+                                  scoreB: getQuickScore(m, 'b'),
+                                });
                               }}
+                              disabled={savingMatch}
                             >
-                              Start
+                              {savingMatch ? 'Saving...' : 'Save'}
                             </button>
-                          ) : (
                             <button
-                              className="px-2 py-1 rounded-lg border hover:bg-slate-100"
+                              className="px-2 py-1 rounded-lg border hover:bg-slate-100 text-xs"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                openMatchTracking({ stage: m.stage, id: m.id });
+                                openMatchFromWidget(m);
                               }}
                             >
-                              {m.status === 'Live' ? 'Open' : 'View'}
+                              {isScorableMatch(m.status) ? 'Live' : 'View'}
                             </button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -498,6 +723,7 @@ export default function TournamentsScreen({
           {(() => {
             const match = findMatchByRef(selectedTournament, selectedMatchRef);
             if (!match) return <div className="text-sm text-slate-500">Match not found.</div>;
+
             const isCompletedTournamentLocked =
               selectedTournament?.status === 'Completed' && !isAdminUser;
             const teamsById = Object.fromEntries(
@@ -508,137 +734,152 @@ export default function TournamentsScreen({
             );
             const teamA = teamsById[match.teamAId || ''];
             const teamB = teamsById[match.teamBId || ''];
-            const teamAName = getMatchSideName(match, teamsById, 'A');
-            const teamBName = getMatchSideName(match, teamsById, 'B');
-            const teamANameWithWinner = withWinnerTrophy(match, 'A', teamAName);
-            const teamBNameWithWinner = withWinnerTrophy(match, 'B', teamBName);
-            const teamAPlayers = match?.teamAPlayerIds
-              ? match.teamAPlayerIds.map((pid) => playersById[pid]?.name).filter(Boolean).join(', ')
-              : (teamA?.players || []).map((pid) => playersById[pid]?.name).filter(Boolean).join(', ');
-            const teamBPlayers = match?.teamBPlayerIds
-              ? match.teamBPlayerIds.map((pid) => playersById[pid]?.name).filter(Boolean).join(', ')
-              : (teamB?.players || []).map((pid) => playersById[pid]?.name).filter(Boolean).join(', ');
-            const normalizeScore = (value) => {
-              if (value === '' || value == null) return null;
-              const n = Number(value);
-              return Number.isFinite(n) ? n : null;
+            const teamAName = withWinnerTrophy(match, 'A', getMatchSideName(match, teamsById, 'A'));
+            const teamBName = withWinnerTrophy(match, 'B', getMatchSideName(match, teamsById, 'B'));
+            const teamAPlayers = (
+              match?.teamAPlayerIds?.length
+                ? match.teamAPlayerIds
+                : (teamA?.players || [])
+            )
+              .map((pid) => playersById[pid]?.name)
+              .filter(Boolean);
+            const teamBPlayers = (
+              match?.teamBPlayerIds?.length
+                ? match.teamBPlayerIds
+                : (teamB?.players || [])
+            )
+              .map((pid) => playersById[pid]?.name)
+              .filter(Boolean);
+
+            const pushHistory = () => {
+              setHistoryStack((prev) => [
+                ...prev,
+                {
+                  scoreA: matchScoreA,
+                  scoreB: matchScoreB,
+                  winnerId: matchWinnerId,
+                  status: matchStatus,
+                  serving: serveSide,
+                  servingPlayerA: servePlayerA,
+                  servingPlayerB: servePlayerB,
+                },
+              ]);
             };
-            const syncWinnerAndStatus = (nextScoreA, nextScoreB) => {
-              const a = normalizeScore(nextScoreA);
-              const b = normalizeScore(nextScoreB);
-              if (a == null || b == null) {
-                setMatchStatus('Pending');
-                setMatchWinnerId('');
-                return;
-              }
-              if (a > b) {
-                setMatchStatus('Completed');
-                setMatchWinnerId(match.teamAId || '');
-                return;
-              }
-              if (b > a) {
-                setMatchStatus('Completed');
-                setMatchWinnerId(match.teamBId || '');
-                return;
-              }
-              setMatchStatus('Pending');
-              setMatchWinnerId('');
+
+            const applyScores = (nextA, nextB) => {
+              setMatchScoreA(nextA);
+              setMatchScoreB(nextB);
+              const outcome = computeOutcome(match, nextA, nextB);
+              setMatchWinnerId(outcome.winnerId);
+              setMatchStatus(outcome.status);
             };
+
+            const incrementPoint = (side) => {
+              if (isCompletedTournamentLocked || savingMatch) return;
+              pushHistory();
+              const a = normalizeScoreValue(matchScoreA) ?? 0;
+              const b = normalizeScoreValue(matchScoreB) ?? 0;
+              if (side === 'A') applyScores(a + 1, b);
+              else applyScores(a, b + 1);
+              if (side !== serveSide) {
+                setServeSide(side);
+                if (side === 'A') {
+                  setServePlayerA((prev) => (teamAPlayers.length > 1 ? (prev === 0 ? 1 : 0) : 0));
+                } else {
+                  setServePlayerB((prev) => (teamBPlayers.length > 1 ? (prev === 0 ? 1 : 0) : 0));
+                }
+              }
+            };
+
+            const undoLast = () => {
+              if (isCompletedTournamentLocked || savingMatch) return;
+              setHistoryStack((prev) => {
+                if (prev.length === 0) return prev;
+                const last = prev[prev.length - 1];
+                setMatchScoreA(last.scoreA);
+                setMatchScoreB(last.scoreB);
+                setMatchWinnerId(last.winnerId);
+                setMatchStatus(last.status);
+                setServeSide(last.serving === 'B' ? 'B' : 'A');
+                setServePlayerA(Number(last.servingPlayerA) === 1 ? 1 : 0);
+                setServePlayerB(Number(last.servingPlayerB) === 1 ? 1 : 0);
+                return prev.slice(0, -1);
+              });
+            };
+
+            const changeServe = () => {
+              if (isCompletedTournamentLocked || savingMatch) return;
+              pushHistory();
+              const scoreAValue = normalizeScoreValue(matchScoreA) ?? 0;
+              const scoreBValue = normalizeScoreValue(matchScoreB) ?? 0;
+              const isPregame = scoreAValue === 0 && scoreBValue === 0;
+
+              if (isPregame) {
+                const options = [];
+                if (teamAPlayers.length > 0) {
+                  options.push({ side: 'A', idx: 0 });
+                  if (teamAPlayers.length > 1) options.push({ side: 'A', idx: 1 });
+                }
+                if (teamBPlayers.length > 0) {
+                  options.push({ side: 'B', idx: 0 });
+                  if (teamBPlayers.length > 1) options.push({ side: 'B', idx: 1 });
+                }
+                if (options.length > 0) {
+                  const currentIdx =
+                    serveSide === 'A'
+                      ? Number(servePlayerA) === 1 ? 1 : 0
+                      : Number(servePlayerB) === 1 ? 1 : 0;
+                  const currentOptionIndex = options.findIndex(
+                    (opt) => opt.side === serveSide && opt.idx === currentIdx
+                  );
+                  const nextOption =
+                    options[(currentOptionIndex >= 0 ? currentOptionIndex + 1 : 0) % options.length];
+                  setServeSide(nextOption.side);
+                  if (nextOption.side === 'A') setServePlayerA(nextOption.idx);
+                  else setServePlayerB(nextOption.idx);
+                  return;
+                }
+              }
+
+              setServeSide((prev) => {
+                const next = prev === 'A' ? 'B' : 'A';
+                if (next === 'A') {
+                  setServePlayerA((p) => (teamAPlayers.length > 1 ? (p === 0 ? 1 : 0) : 0));
+                } else {
+                  setServePlayerB((p) => (teamBPlayers.length > 1 ? (p === 0 ? 1 : 0) : 0));
+                }
+                return next;
+              });
+            };
+
             return (
-              <>
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <div>
-                    <div className="font-semibold text-lg">
-                      Track Match - {match.label || selectedMatchRef.stage}
-                    </div>
-                    {/* <div className="text-sm text-slate-500">
-                      {isCompletedTournamentLocked
-                        ? 'Completed tournament: view only. Only admin can edit scores.'
-                        : 'Update score and winner for this match.'}
-                    </div> */}
-                  </div>
-                  <button
-                    className="px-3 py-2 rounded-lg border hover:bg-slate-100"
-                    onClick={() => setTournamentView('matches')}
-                  >
-                    Back
-                  </button>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <div className="rounded-lg border p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="font-semibold">{teamANameWithWinner}</div>
-                      <input
-                        type="number"
-                        className="w-24 px-3 py-2 border rounded-lg text-right"
-                        placeholder="Score"
-                        value={matchScoreA}
-                        disabled={isCompletedTournamentLocked}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setMatchScoreA(v);
-                          syncWinnerAndStatus(v, matchScoreB);
-                        }}
-                      />
-                    </div>
-                    <div className="text-sm text-slate-500 mt-1">Players: {teamAPlayers || '-'}</div>
-                  </div>
-                  <div className="rounded-lg border p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="font-semibold">{teamBNameWithWinner}</div>
-                      <input
-                        type="number"
-                        className="w-24 px-3 py-2 border rounded-lg text-right"
-                        placeholder="Score"
-                        value={matchScoreB}
-                        disabled={isCompletedTournamentLocked}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setMatchScoreB(v);
-                          syncWinnerAndStatus(matchScoreA, v);
-                        }}
-                      />
-                    </div>
-                    <div className="text-sm text-slate-500 mt-1">Players: {teamBPlayers || '-'}</div>
-                  </div>
-                </div>
-
-                <div className="mt-3">
-                  <div className="space-y-2 text-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-slate-500">Status:</span>
-                      <span
-                        className={`px-2 py-1 rounded-full border text-xs ${getMatchStatusBadgeClass(
-                          matchStatus
-                        )}`}
-                      >
-                        {getMatchStatusLabel(matchStatus)}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-slate-500">Winner:</span>
-                      <span className="font-medium">
-                        {matchWinnerId === (match.teamAId || '')
-                          ? teamAName
-                          : matchWinnerId === (match.teamBId || '')
-                            ? teamBName
-                            : '-'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex justify-end">
-                  <button
-                    className="btn-primary w-full sm:w-auto"
-                    onClick={saveMatchTracking}
-                    disabled={savingMatch || isCompletedTournamentLocked}
-                  >
-                    {savingMatch ? 'Saving...' : 'Save Match'}
-                  </button>
-                </div>
-              </>
+              <MatchScoringScreen
+                title={`${match.label || `${selectedMatchRef.stage} Match`} | ${selectedTournament.name}`}
+                statusLabel={getMatchStatusLabel(matchStatus || match.status)}
+                teamAName={teamAName}
+                teamBName={teamBName}
+                teamAPlayers={teamAPlayers}
+                teamBPlayers={teamBPlayers}
+                scoreA={matchScoreA}
+                scoreB={matchScoreB}
+                servingSide={serveSide}
+                servingPlayerIndexA={servePlayerA}
+                servingPlayerIndexB={servePlayerB}
+                onPointA={() => incrementPoint('A')}
+                onPointB={() => incrementPoint('B')}
+                onUndo={undoLast}
+                onChangeServe={changeServe}
+                onNextGame={() =>
+                  saveMatchTracking({
+                    servingSide: serveSide,
+                    servingPlayerIndexA: servePlayerA,
+                    servingPlayerIndexB: servePlayerB,
+                  })
+                }
+                onBack={() => setTournamentView('matches')}
+                saving={savingMatch}
+                locked={isCompletedTournamentLocked}
+              />
             );
           })()}
         </div>
@@ -748,30 +989,107 @@ export default function TournamentsScreen({
                   {pools.length === 0 ? (
                     <div className="text-sm text-slate-500">No groups available.</div>
                   ) : (
-                    (() => {
-                      const rows = pools.map((p, idx) => {
-                        const groupRows = standings[p.id] || [];
-                        return {
-                          id: p.id,
-                          name: p.name || `Group ${idx + 1}`,
-                          points: groupRows.reduce((sum, r) => sum + Number(r?.points || 0), 0),
-                          played: groupRows.reduce((sum, r) => sum + Number(r?.played || 0), 0),
-                          won: groupRows.reduce((sum, r) => sum + Number(r?.won || 0), 0),
-                        };
-                      }).sort((a, b) => {
-                        if (b.points !== a.points) return b.points - a.points;
-                        if (b.won !== a.won) return b.won - a.won;
-                        if (a.played !== b.played) return a.played - b.played;
-                        return a.name.localeCompare(b.name);
-                      });
+                    selectedTournament?.mode === 'group' ? (
+                      (() => {
+                        const groupRows = pools
+                          .map((p, idx) => {
+                            const rows = standings[p.id] || [];
+                            const groupPoints = rows.reduce((sum, r) => sum + Number(r?.points || 0), 0);
+                            const played = rows.reduce((sum, r) => sum + Number(r?.played || 0), 0);
+                            const won = rows.reduce((sum, r) => sum + Number(r?.won || 0), 0);
+                            const lost = rows.reduce(
+                              (sum, r) =>
+                                sum +
+                                (Number(r?.lost ?? Math.max(0, Number(r?.played || 0) - Number(r?.won || 0))) || 0),
+                              0
+                            );
+                            const pointDiff = rows.reduce(
+                              (sum, r) => sum + (Number(r?.pf || 0) - Number(r?.pa || 0)),
+                              0
+                            );
+                            return {
+                              id: p.id,
+                              groupName: p.name || `Group ${idx + 1}`,
+                              points: groupPoints,
+                              won,
+                              lost,
+                              pointDiff,
+                            };
+                          })
+                          .sort((a, b) => {
+                            if (b.points !== a.points) return b.points - a.points;
+                            if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
+                            return a.groupName.localeCompare(b.groupName);
+                          });
+                        return (
+                          <>
+                            <div className="sm:hidden space-y-2">
+                              {groupRows.map((row) => (
+                                <div key={row.id} className="rounded-lg border p-2.5">
+                                  <div className="font-medium text-sm">{row.groupName}</div>
+                                  <div className="text-xs text-slate-500 mt-1">
+                                    Pts: {row.points} | Won: {row.won} | Lost: {row.lost} | Diff: {row.pointDiff}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="hidden sm:block overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="text-left text-slate-500">
+                                    <th className="py-2 pr-2">Group</th>
+                                    <th className="py-2">Total Points</th>
+                                    <th className="py-2">Won</th>
+                                    <th className="py-2">Lost</th>
+                                    <th className="py-2">Point Diff</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {groupRows.map((row) => (
+                                    <tr key={row.id} className="border-t">
+                                      <td className="py-2 pr-2">{row.groupName}</td>
+                                      <td className="py-2">{row.points}</td>
+                                      <td className="py-2">{row.won}</td>
+                                      <td className="py-2">{row.lost}</td>
+                                      <td className="py-2">{row.pointDiff}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </>
+                        );
+                      })()
+                    ) : (
+                      (() => {
+                      const rows = pools
+                        .flatMap((p, idx) =>
+                          (standings[p.id] || []).map((r) => ({
+                            id: `${p.id}-${r.teamId}`,
+                            groupName: p.name || `Group ${idx + 1}`,
+                            teamId: r.teamId,
+                            teamName: teamsById[r.teamId]?.name || r.teamId,
+                            points: Number(r?.points || 0),
+                            played: Number(r?.played || 0),
+                            won: Number(r?.won || 0),
+                            pointDiff: Number(r?.pf || 0) - Number(r?.pa || 0),
+                          }))
+                        )
+                        .sort((a, b) => {
+                          if (b.points !== a.points) return b.points - a.points;
+                          if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
+                          if (b.won !== a.won) return b.won - a.won;
+                          return a.teamName.localeCompare(b.teamName);
+                        });
                       return (
                         <>
                           <div className="sm:hidden space-y-2">
                             {rows.map((row) => (
                               <div key={row.id} className="rounded-lg border p-2.5">
-                                <div className="font-medium text-sm">{row.name}</div>
+                                <div className="font-medium text-sm">{row.teamName}</div>
+                                <div className="text-xs text-slate-500 mt-0.5">{row.groupName}</div>
                                 <div className="text-xs text-slate-500 mt-1">
-                                  Pts: {row.points} | Played: {row.played} | Won: {row.won}
+                                  Pts: {row.points} | Diff: {row.pointDiff} | Played: {row.played} | Won: {row.won}
                                 </div>
                               </div>
                             ))}
@@ -781,7 +1099,9 @@ export default function TournamentsScreen({
                               <thead>
                                 <tr className="text-left text-slate-500">
                                   <th className="py-2 pr-2">Group</th>
+                                  <th className="py-2 pr-2">Team</th>
                                   <th className="py-2">Points</th>
+                                  <th className="py-2">Point Difference</th>
                                   <th className="py-2">Played</th>
                                   <th className="py-2">Won</th>
                                 </tr>
@@ -789,8 +1109,10 @@ export default function TournamentsScreen({
                               <tbody>
                                 {rows.map((row) => (
                                   <tr key={row.id} className="border-t">
-                                    <td className="py-2 pr-2">{row.name}</td>
+                                    <td className="py-2 pr-2">{row.groupName}</td>
+                                    <td className="py-2 pr-2">{row.teamName}</td>
                                     <td className="py-2">{row.points}</td>
+                                    <td className="py-2">{row.pointDiff}</td>
                                     <td className="py-2">{row.played}</td>
                                     <td className="py-2">{row.won}</td>
                                   </tr>
@@ -800,7 +1122,8 @@ export default function TournamentsScreen({
                           </div>
                         </>
                       );
-                    })()
+                      })()
+                    )
                   )}
                 </div>
 

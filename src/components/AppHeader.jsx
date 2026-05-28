@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export default function AppHeader({
   menuRef,
@@ -6,27 +6,46 @@ export default function AppHeader({
   setMenuOpen,
   authBusy,
   isLoggedIn,
+  isAdmin,
   onHome,
   onFixture,
   onPlayer,
   onSkillLevel,
   onPredictions,
   onProfile,
+  onScoreboard,
   onTournaments,
   onAuth,
 }) {
+  const [logoBroken, setLogoBroken] = useState(false);
+
   return (
     <header className="sticky top-0 z-20 bg-white/85 backdrop-blur border-b border-slate-200/80">
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5">
         <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-r from-white via-cyan-50/80 to-indigo-50/80 px-3 py-2.5 shadow-sm">
           <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold leading-tight text-slate-900 truncate">
-                <span className="mr-2">🏸</span>
-                Tournament Manager
-              </h1>
-              <div className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                Tournament & Fixture Companion
+            <div className="min-w-0 flex items-start gap-1">
+              <span className="shrink-0">
+                {logoBroken ? (
+                  <span className="text-3xl sm:text-4xl leading-none">🏸</span>
+                ) : (
+                  <span className="inline-flex h-11 w-11 sm:h-14 sm:w-14 rounded-full overflow-hidden">
+                    <img
+                      src="/logo.png"
+                      alt="Tournament Manager logo"
+                      className="h-full w-full object-cover scale-[1]"
+                      onError={() => setLogoBroken(true)}
+                    />
+                  </span>
+                )}
+              </span>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold leading-tight text-slate-900 truncate">
+                  Tournament Manager
+                </h1>
+                <div className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
+                  Tournament & Fixture Companion
+                </div>
               </div>
             </div>
 
@@ -78,6 +97,14 @@ export default function AppHeader({
                     >
                       My Profile
                     </button>
+                    {isAdmin && (
+                      <button
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 border-t"
+                        onClick={onScoreboard}
+                      >
+                        Scoreboard
+                      </button>
+                    )}
                     <button
                       className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 border-t"
                       onClick={onTournaments}

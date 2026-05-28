@@ -15,16 +15,28 @@ export default function MatchesTable({
 }) {
   const [groupFilter, setGroupFilter] = useState('all');
   const [courtFilter, setCourtFilter] = useState('all');
+  const getStatusPriority = (status) => {
+    if (status === 'Live') return 0;
+    if (status === 'Upcoming' || status === 'Pending' || !status) return 1;
+    if (status === 'Completed') return 2;
+    return 3;
+  };
   const matchRows = (matches || []).map((m, idx) => ({
     match: m,
     index: idx,
     court: Number(m?.court) || (idx % 2) + 1,
   }));
-  const filtered = matchRows.filter((row) => {
-    const byGroup = groupFilter === 'all' ? true : row.match?.poolId === groupFilter;
-    const byCourt = courtFilter === 'all' ? true : String(row.court) === courtFilter;
-    return byGroup && byCourt;
-  });
+  const filtered = matchRows
+    .filter((row) => {
+      const byGroup = groupFilter === 'all' ? true : row.match?.poolId === groupFilter;
+      const byCourt = courtFilter === 'all' ? true : String(row.court) === courtFilter;
+      return byGroup && byCourt;
+    })
+    .sort((a, b) => {
+      const statusDiff = getStatusPriority(a.match?.status) - getStatusPriority(b.match?.status);
+      if (statusDiff !== 0) return statusDiff;
+      return a.index - b.index;
+    });
   const poolOptions = Object.values(poolsById);
   const courtOptions = [...new Set(matchRows.map((row) => String(row.court)))].sort((a, b) => Number(a) - Number(b));
   const statusBadgeClass = (status) => {

@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React from 'react';
+import { resolveProfilePhotoUrl } from '../supabaseAdapter.js';
 
 export default function PlayerPickerModal({
   open,
@@ -14,6 +15,23 @@ export default function PlayerPickerModal({
   onConfirm, // () => void
 }) {
   if (!open) return null;
+
+  function renderAvatar(player) {
+    const avatarUrl = resolveProfilePhotoUrl(player?.avatarUrl);
+    const label = String(player?.name || 'Player').trim();
+    const initial = label ? label.charAt(0).toUpperCase() : 'P';
+    return (
+      <div className="h-8 w-8 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+        {avatarUrl ? (
+          <img src={avatarUrl} alt={`${label || 'Player'} avatar`} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-500">
+            {initial}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3 sm:p-4">
@@ -58,10 +76,11 @@ export default function PlayerPickerModal({
                 No saved players found.
               </div>
             ) : (
-              <table className="min-w-[420px] w-full text-sm">
+              <table className="min-w-[480px] w-full text-sm">
                 <thead className="bg-slate-50">
                   <tr>
                     <th className="p-2 w-10"></th>
+                    <th className="text-left p-2 w-12">Photo</th>
                     <th className="text-left p-2">Name</th>
                     <th className="text-left p-2">Skill</th>
                   </tr>
@@ -76,6 +95,7 @@ export default function PlayerPickerModal({
                           onChange={() => toggleSelect(p.id)}
                         />
                       </td>
+                      <td className="p-2">{renderAvatar(p)}</td>
                       <td className="p-2">{p.name}</td>
                       <td className="p-2">S{p.skill}</td>
                     </tr>
