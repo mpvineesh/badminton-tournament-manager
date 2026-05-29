@@ -69,15 +69,15 @@ export default function MatchesTable({
     <div className="p-0 sm:p-1">
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="grow">
-          <div className="font-semibold text-slate-900">Matches</div>
-          <div className="text-xs text-slate-500">{filtered.length} visible</div>
+          <div className="font-semibold text-slate-900 dark:text-slate-100">Matches</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400">{filtered.length} visible</div>
         </div>
         <div className="flex w-full sm:w-auto items-center gap-2 text-xs sm:text-sm">
-          <span className="text-slate-500">Group</span>
+          <span className="text-slate-500 dark:text-slate-400">Group</span>
           <select
             value={groupFilter}
             onChange={(e) => setGroupFilter(e.target.value)}
-            className="w-full sm:w-auto px-2.5 py-1.5 border rounded-full bg-white text-slate-900 shadow-sm"
+            className="w-full sm:w-auto px-2.5 py-1.5 border rounded-full bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100 shadow-sm"
           >
             <option value="all">All</option>
             {poolOptions.map((p) => (
@@ -88,11 +88,11 @@ export default function MatchesTable({
           </select>
         </div>
         <div className="flex w-full sm:w-auto items-center gap-2 text-xs sm:text-sm">
-          <span className="text-slate-500">Court</span>
+          <span className="text-slate-500 dark:text-slate-400">Court</span>
           <select
             value={courtFilter}
             onChange={(e) => setCourtFilter(e.target.value)}
-            className="w-full sm:w-auto px-2.5 py-1.5 border rounded-full bg-white text-slate-900 shadow-sm"
+            className="w-full sm:w-auto px-2.5 py-1.5 border rounded-full bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100 shadow-sm"
           >
             <option value="all">All</option>
             {courtOptions.map((c) => (
@@ -113,9 +113,9 @@ export default function MatchesTable({
           const groupALabel = getGroupName(m, 'A');
           const groupBLabel = getGroupName(m, 'B');
           return (
-            <div key={m.id} className="rounded-xl border border-slate-200 p-2.5 bg-gradient-to-br from-white to-cyan-50/40 shadow-sm">
+            <div key={m.id} className="rounded-xl border border-slate-200 dark:border-navy-700 p-2.5 bg-gradient-to-br from-white dark:from-navy-900 to-navy-50/40 shadow-sm">
               <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="text-[11px] text-slate-500">
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
                   Court {row.court} · #{i + 1}
                 </div>
                 <span
@@ -130,7 +130,7 @@ export default function MatchesTable({
               <div className="text-sm font-medium leading-5">
                 {teamAName} <span className="text-slate-400">vs</span> {teamBName}
               </div>
-              <div className="mt-1 text-xs text-slate-500">Group: {groupALabel} vs {groupBLabel}</div>
+              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Group: {groupALabel} vs {groupBLabel}</div>
 
               <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <div className="flex justify-center">
@@ -139,7 +139,7 @@ export default function MatchesTable({
                     onChange={(v) => onScoreChange(m.id, v, m.scoreB, 'A')}
                   />
                 </div>
-                <span className="text-slate-500 text-sm">-</span>
+                <span className="text-slate-500 dark:text-slate-400 text-sm">-</span>
                 <div className="flex justify-center">
                   <ScoreInput
                     value={m.scoreB}
@@ -174,10 +174,10 @@ export default function MatchesTable({
       </div>
 
       {/* Desktop table */}
-      <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 shadow-sm">
         <table className="w-full text-[13px]">
           <thead>
-            <tr className="text-left text-slate-500 bg-slate-50/80">
+            <tr className="text-left text-slate-500 dark:text-slate-400 bg-slate-50/80">
               <th className="py-2 px-2">#</th>
               <th className="px-2">Court</th>
               <th className="px-2">Match</th>
@@ -203,7 +203,7 @@ export default function MatchesTable({
                       {decorateWinner(m, 'B', getDisplayName(m, 'B'))}
                     </span>
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">
+                  <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     Group: {getGroupName(m, 'A')} vs {getGroupName(m, 'B')}
                   </div>
                 </td>
@@ -213,7 +213,7 @@ export default function MatchesTable({
                       value={m.scoreA}
                       onChange={(v) => onScoreChange(m.id, v, m.scoreB, 'A')}
                     />
-                    <span className="text-slate-500">-</span>
+                    <span className="text-slate-500 dark:text-slate-400">-</span>
                     <ScoreInput
                       value={m.scoreB}
                       onChange={(v) => onScoreChange(m.id, m.scoreA, v, 'B')}

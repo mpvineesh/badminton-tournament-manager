@@ -1,49 +1,40 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helpers
+    // The app signs in anonymously (see firebaseClient.js), so every request
+    // from the app carries an auth session. Admin vs player is enforced in the
+    // client (the app's own OTP login), so these rules only gate on having a
+    // signed-in session rather than per-document ownership.
     function signedIn() { return request.auth != null; }
-    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
 
-    // Players: public read, authenticated create. Only creator or admin may update/delete.
+    // Players: public read; any signed-in session may write.
     match /players/{playerId} {
       allow read: if true;
-      allow create: if signedIn();
-      allow update, delete: if signedIn() && (
-        // The rule expects documents to optionally include `created_by_uid`.
-        // If your app doesn't set that field yet, update the app to set it on create,
-        // or remove this check to allow broader edits.
-        resource.data.created_by_uid == request.auth.uid || isAdmin()
-      );
+      allow write: if signedIn();
     }
 
-    // Tournaments: public read, authenticated create where creator UID matches.
-    // Updates/deletes allowed to creator or admin.
+    // Tournaments: public read (scoreboard/standings are public); signed-in write.
     match /tournaments/{tournamentId} {
       allow read: if true;
-      allow create: if signedIn() && request.resource.data.created_by_uid == request.auth.uid;
-      allow update, delete: if signedIn() && (resource.data.created_by_uid == request.auth.uid || isAdmin());
+      allow write: if signedIn();
     }
 
-    // Tournament snapshots: require auth to list/read snapshots, creators may create.
+    // Tournament snapshots/history: signed-in read and write.
     match /tournament_snapshots/{snapshotId} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.tournament_id is string;
-      allow delete: if isAdmin();
+      allow write: if signedIn();
     }
 
-    // Predictions: only authenticated users may write; users should set `predictor_uid` on create.
+    // Predictions: signed-in read and write.
     match /predictions/{predictionId} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.predictor_uid == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow write: if signedIn();
     }
 
-    // Skill suggestions: public read, auth create, admin delete.
+    // Skill suggestions: public read; signed-in write.
     match /skill_suggestions/{suggId} {
       allow read: if true;
-      allow create: if signedIn();
-      allow delete: if isAdmin();
+      allow write: if signedIn();
     }
 
     // Default: deny everything else.

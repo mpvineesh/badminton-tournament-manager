@@ -20,9 +20,9 @@ export default function AppHeader({
   const [logoBroken, setLogoBroken] = useState(false);
 
   return (
-    <header className="sticky top-0 z-20 bg-white/85 backdrop-blur border-b border-slate-200/80">
+    <header className="sticky top-0 z-20 bg-white/85 dark:bg-navy-900/85 backdrop-blur border-b border-slate-200/80">
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5">
-        <div className="rounded-2xl border border-slate-200/80 bg-gradient-to-r from-white via-cyan-50/80 to-indigo-50/80 px-3 py-2.5 shadow-sm">
+        <div className="rounded-2xl border border-navy-700 bg-gradient-to-r from-navy-800 to-navy-900 px-3 py-2.5 shadow-md">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex items-start gap-1">
               <span className="shrink-0">
@@ -40,11 +40,11 @@ export default function AppHeader({
                 )}
               </span>
               <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-bold leading-tight text-slate-900 truncate">
-                  Tournament Manager
+                <h1 className="text-xl sm:text-2xl font-bold leading-tight text-white truncate">
+                  Whitefeather
                 </h1>
-                <div className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-                  Tournament & Fixture Companion
+                <div className="text-[11px] sm:text-xs text-gold-300 mt-0.5">
+                  Badminton Club
                 </div>
               </div>
             </div>
@@ -52,7 +52,7 @@ export default function AppHeader({
             {isLoggedIn && (
               <div className="relative shrink-0" ref={menuRef}>
                 <button
-                  className="h-11 w-11 rounded-xl border border-slate-300 bg-white/90 hover:bg-white text-lg leading-none shadow-sm"
+                  className="h-11 w-11 rounded-xl border border-white/25 bg-white/10 dark:bg-navy-900/10 text-white hover:bg-white/20 text-lg leading-none shadow-sm"
                   onClick={() => setMenuOpen((v) => !v)}
                   aria-label="Open menu"
                   aria-expanded={menuOpen}
@@ -60,7 +60,7 @@ export default function AppHeader({
                   ☰
                 </button>
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 bg-white/95 shadow-lg z-50 overflow-hidden backdrop-blur">
+                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 shadow-lg z-50 overflow-hidden backdrop-blur">
                     <button
                       className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
                       onClick={onHome}

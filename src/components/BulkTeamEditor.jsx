@@ -21,11 +21,11 @@ export default function BulkTeamEditor({
     <div className="rounded-lg border">
       <div className="space-y-3 p-3 sm:hidden">
         {teams.map((t) => (
-          <div key={t.id} className="rounded-xl border border-slate-200 bg-white p-3">
-            <div className="mb-2 text-sm font-semibold text-slate-800">{t.name}</div>
+          <div key={t.id} className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-3">
+            <div className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">{t.name}</div>
             <div className="space-y-2">
               <div>
-                <label className="mb-1 block text-xs text-slate-500">Player 1</label>
+                <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Player 1</label>
                 <PlayerSelectInline
                   players={players}
                   value={getRowValue(t.id, 0)}
@@ -34,7 +34,7 @@ export default function BulkTeamEditor({
               </div>
               {mode === 'doubles' && (
                 <div>
-                  <label className="mb-1 block text-xs text-slate-500">Player 2</label>
+                  <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">Player 2</label>
                   <PlayerSelectInline
                     players={players}
                     value={getRowValue(t.id, 1)}
@@ -50,7 +50,7 @@ export default function BulkTeamEditor({
       <div className="hidden overflow-x-auto sm:block">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-slate-500">
+            <tr className="text-left text-slate-500 dark:text-slate-400">
               <th className="p-2">Team</th>
               {mode === 'doubles' && (
                 <>

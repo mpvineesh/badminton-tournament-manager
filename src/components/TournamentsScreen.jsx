@@ -48,7 +48,7 @@ export default function TournamentsScreen({
     if (status === 'Upcoming' || status === 'Pending' || !status) {
       return 'bg-yellow-50 text-yellow-700 border-yellow-200';
     }
-    return 'bg-slate-50 text-slate-700 border-slate-200';
+    return 'bg-slate-50 text-slate-700 dark:text-slate-200 border-slate-200';
   };
   const getMatchStatusLabel = (status) =>
     status === 'Pending' || !status ? 'Upcoming' : status;
@@ -205,6 +205,30 @@ export default function TournamentsScreen({
     setQuickScores({});
   }, [selectedTournament?.id, tournamentView]);
 
+  // Auto-save live scores (debounced) so a point is never lost when leaving the
+  // scoring screen — including via the device back button — and the scoreboard
+  // updates in near real time. Only writes when the score actually changed.
+  React.useEffect(() => {
+    if (tournamentView !== 'match' || !selectedMatchRef) return undefined;
+    const stored = findMatchByRef(selectedTournament, selectedMatchRef);
+    const changed =
+      String(matchScoreA ?? '') !== String(stored?.scoreA ?? '') ||
+      String(matchScoreB ?? '') !== String(stored?.scoreB ?? '');
+    if (!changed) return undefined;
+    const timer = setTimeout(() => {
+      saveMatchTracking({
+        scoreA: matchScoreA,
+        scoreB: matchScoreB,
+        servingSide: serveSide,
+        servingPlayerIndexA: servePlayerA,
+        servingPlayerIndexB: servePlayerB,
+        silent: true,
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchScoreA, matchScoreB, serveSide, servePlayerA, servePlayerB, tournamentView, selectedMatchRef, selectedTournament]);
+
   const normalizeScoreValue = (value) => {
     if (value === '' || value == null) return null;
     const n = Number(value);
@@ -328,7 +352,7 @@ export default function TournamentsScreen({
 
       {showListView && (
         <>
-          <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
+          <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
               <div className="font-semibold">All Tournaments</div>
               <button
@@ -339,9 +363,9 @@ export default function TournamentsScreen({
               </button>
             </div>
             {tournamentsLoading ? (
-              <div className="text-sm text-slate-500">Loading tournaments...</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">Loading tournaments...</div>
             ) : tournamentsList.length === 0 ? (
-              <div className="text-sm text-slate-500">No tournaments found.</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">No tournaments found.</div>
             ) : (
               <div className="space-y-3">
                 <div className="sm:hidden space-y-3">
@@ -362,12 +386,12 @@ export default function TournamentsScreen({
                           {row.status || 'Upcoming'}
                         </span>
                       </div>
-                      <div className="text-xs text-slate-500 mt-1">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         Match: {getMatchDateTime(row)}
                       </div>
                       <div className="mt-3 grid grid-cols-1 gap-2">
                         {row.status === 'Completed' ? (
-                          <div className="w-full px-2 py-1.5 rounded border bg-slate-50 text-sm">
+                          <div className="w-full px-2 py-1.5 rounded border bg-slate-50 dark:bg-navy-800 text-sm">
                             Winner: <span className="font-medium">{getWinnerTeamName(row)}</span>
                           </div>
                         ) : null}
@@ -417,7 +441,7 @@ export default function TournamentsScreen({
                         )}
                       </div>
                       {isAdminUser && (
-                        <div className="mt-2 text-[11px] text-slate-500 text-right">
+                        <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 text-right">
                           Created by: {getTournamentCreatorName?.(row) || 'Unknown'}
                         </div>
                       )}
@@ -427,7 +451,7 @@ export default function TournamentsScreen({
 
                 <div className="hidden sm:block overflow-x-auto rounded-lg border">
                   <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-slate-500">
+                    <thead className="bg-slate-50 dark:bg-navy-800 text-left text-slate-500 dark:text-slate-400">
                       <tr>
                         <th className="p-2">Name</th>
                         <th className="p-2">Winner</th>
@@ -446,7 +470,7 @@ export default function TournamentsScreen({
                               {row.name}
                             </button>
                             {isAdminUser && (
-                              <div className="mt-0.5 text-[11px] text-slate-500 text-right">
+                              <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 text-right">
                                 Created by: {getTournamentCreatorName?.(row) || 'Unknown'}
                               </div>
                             )}
@@ -524,14 +548,14 @@ export default function TournamentsScreen({
       )}
 
       {tournamentView === 'matches' && selectedTournament && (
-        <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
               <div className="font-semibold text-lg">Matches - {selectedTournament.name}</div>
-              <div className="text-sm text-slate-500">View match status and open details.</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">View match status and open details.</div>
             </div>
             <button
-              className="px-3 py-2 rounded-lg border hover:bg-slate-100"
+              className="btn-ghost"
               onClick={() => setTournamentView('list')}
             >
               Back
@@ -553,7 +577,7 @@ export default function TournamentsScreen({
                     onClick={() => openMatchFromWidget(m)}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="text-xs text-slate-500">{m.stage}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">{m.stage}</div>
                       <div
                         className={`text-xs rounded-full border px-2 py-0.5 ${getMatchStatusBadgeClass(
                           m.status
@@ -565,7 +589,7 @@ export default function TournamentsScreen({
                     <div className="mt-1 font-medium text-sm">
                       {m.label || `Match ${idx + 1}`}
                     </div>
-                    <div className="mt-1 text-sm text-slate-600">
+                    <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                       {teamA} vs {teamB}
                     </div>
                     <div className="mt-1 text-sm">
@@ -625,7 +649,7 @@ export default function TournamentsScreen({
 
             <div className="hidden sm:block overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-slate-500">
+                <thead className="bg-slate-50 dark:bg-navy-800 text-left text-slate-500 dark:text-slate-400">
                   <tr>
                     <th className="p-2">Stage</th>
                     <th className="p-2">Match</th>
@@ -719,10 +743,10 @@ export default function TournamentsScreen({
       )}
 
       {tournamentView === 'match' && selectedTournament && selectedMatchRef && (
-        <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
           {(() => {
             const match = findMatchByRef(selectedTournament, selectedMatchRef);
-            if (!match) return <div className="text-sm text-slate-500">Match not found.</div>;
+            if (!match) return <div className="text-sm text-slate-500 dark:text-slate-400">Match not found.</div>;
 
             const isCompletedTournamentLocked =
               selectedTournament?.status === 'Completed' && !isAdminUser;
@@ -876,7 +900,17 @@ export default function TournamentsScreen({
                     servingPlayerIndexB: servePlayerB,
                   })
                 }
-                onBack={() => setTournamentView('matches')}
+                onBack={() => {
+                  if (isCompletedTournamentLocked) {
+                    setTournamentView('matches');
+                  } else {
+                    saveMatchTracking({
+                      servingSide: serveSide,
+                      servingPlayerIndexA: servePlayerA,
+                      servingPlayerIndexB: servePlayerB,
+                    });
+                  }
+                }}
                 saving={savingMatch}
                 locked={isCompletedTournamentLocked}
               />
@@ -886,14 +920,14 @@ export default function TournamentsScreen({
       )}
 
       {tournamentView === 'points' && selectedTournament && (
-        <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <div>
               <div className="font-semibold text-lg">Point Table - {selectedTournament.name}</div>
-              <div className="text-sm text-slate-500">Standings by group for this tournament.</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400">Standings by group for this tournament.</div>
             </div>
             <button
-              className="px-3 py-2 rounded-lg border hover:bg-slate-100"
+              className="btn-ghost"
               onClick={() => setTournamentView('list')}
             >
               Back
@@ -984,10 +1018,10 @@ export default function TournamentsScreen({
 
             return (
               <div className="space-y-4">
-                <div className="rounded-xl border p-4 bg-white">
+                <div className="rounded-xl border p-4 bg-white dark:bg-navy-900">
                   <div className="font-semibold mb-2">Group Points</div>
                   {pools.length === 0 ? (
-                    <div className="text-sm text-slate-500">No groups available.</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">No groups available.</div>
                   ) : (
                     selectedTournament?.mode === 'group' ? (
                       (() => {
@@ -1027,7 +1061,7 @@ export default function TournamentsScreen({
                               {groupRows.map((row) => (
                                 <div key={row.id} className="rounded-lg border p-2.5">
                                   <div className="font-medium text-sm">{row.groupName}</div>
-                                  <div className="text-xs text-slate-500 mt-1">
+                                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                     Pts: {row.points} | Won: {row.won} | Lost: {row.lost} | Diff: {row.pointDiff}
                                   </div>
                                 </div>
@@ -1036,7 +1070,7 @@ export default function TournamentsScreen({
                             <div className="hidden sm:block overflow-x-auto">
                               <table className="w-full text-sm">
                                 <thead>
-                                  <tr className="text-left text-slate-500">
+                                  <tr className="text-left text-slate-500 dark:text-slate-400">
                                     <th className="py-2 pr-2">Group</th>
                                     <th className="py-2">Total Points</th>
                                     <th className="py-2">Won</th>
@@ -1087,8 +1121,8 @@ export default function TournamentsScreen({
                             {rows.map((row) => (
                               <div key={row.id} className="rounded-lg border p-2.5">
                                 <div className="font-medium text-sm">{row.teamName}</div>
-                                <div className="text-xs text-slate-500 mt-0.5">{row.groupName}</div>
-                                <div className="text-xs text-slate-500 mt-1">
+                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{row.groupName}</div>
+                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                   Pts: {row.points} | Diff: {row.pointDiff} | Played: {row.played} | Won: {row.won}
                                 </div>
                               </div>
@@ -1097,7 +1131,7 @@ export default function TournamentsScreen({
                           <div className="hidden sm:block overflow-x-auto">
                             <table className="w-full text-sm">
                               <thead>
-                                <tr className="text-left text-slate-500">
+                                <tr className="text-left text-slate-500 dark:text-slate-400">
                                   <th className="py-2 pr-2">Group</th>
                                   <th className="py-2 pr-2">Team</th>
                                   <th className="py-2">Points</th>
@@ -1128,17 +1162,17 @@ export default function TournamentsScreen({
                 </div>
 
                 {selectedTournament?.mode !== 'group' && (
-                  <div className="rounded-xl border p-4 bg-white">
+                  <div className="rounded-xl border p-4 bg-white dark:bg-navy-900">
                     <div className="font-semibold mb-2">Knockout Points</div>
-                    <div className="text-xs text-slate-500 mb-3">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-3">
                       Semifinal and Final points are tracked separately from group standings.
                     </div>
                     {!areAllGroupMatchesCompleted ? (
-                      <div className="text-sm text-slate-500">
+                      <div className="text-sm text-slate-500 dark:text-slate-400">
                         Knockout points will be available after all group matches are completed.
                       </div>
                     ) : knockoutRows.length === 0 ? (
-                      <div className="text-sm text-slate-500">
+                      <div className="text-sm text-slate-500 dark:text-slate-400">
                         No semifinal-qualified teams yet.
                       </div>
                     ) : (
@@ -1147,7 +1181,7 @@ export default function TournamentsScreen({
                           {knockoutRows.map((row) => (
                             <div key={row.teamId} className="rounded-lg border p-2.5">
                               <div className="font-medium text-sm">{row.teamName}</div>
-                              <div className="text-xs text-slate-500 mt-1">
+                              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                 SF: {row.semiPoints} | Final: {row.finalPoints} | Total: {row.totalKnockout}
                               </div>
                             </div>
@@ -1156,7 +1190,7 @@ export default function TournamentsScreen({
                         <div className="hidden sm:block overflow-x-auto">
                           <table className="w-full text-sm">
                             <thead>
-                              <tr className="text-left text-slate-500">
+                              <tr className="text-left text-slate-500 dark:text-slate-400">
                                 <th className="py-2 pr-2">Team</th>
                                 <th className="py-2">Semifinal</th>
                                 <th className="py-2">Final</th>

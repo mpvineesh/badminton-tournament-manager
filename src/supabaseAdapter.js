@@ -6,13 +6,14 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   orderBy,
   query,
   updateDoc,
   where,
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage as getFirebaseStorage, ref, uploadBytes } from 'firebase/storage';
-import { db, storage, hasFirebaseConfig, firebaseApp } from './firebaseClient.js';
+import { db, storage, hasFirebaseConfig, firebaseApp, ensureAnonymousAuth } from './firebaseClient.js';
 
 const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL ||
@@ -190,6 +191,7 @@ export async function seedDummyPlayersOnce(count = 20) {
   }
 
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('seedDummyPlayersOnce');
     await Promise.all(
       rows.map((row) => addDoc(collection(fdb, 'players'), sanitizeForFirestore(row)))
@@ -646,6 +648,7 @@ export async function upsertPlayers(players) {
     return touched;
   }
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('upsertPlayers');
     if (!Array.isArray(players) || players.length === 0) return [];
     const existing = await listPlayers();
@@ -747,6 +750,7 @@ export async function createPlayer(player) {
     return created;
   }
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('createPlayer');
     const createdAt = new Date().toISOString();
     const ref = await addDoc(
@@ -820,6 +824,7 @@ export async function updatePlayer(id, player) {
     return current[idx];
   }
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('updatePlayer');
     await updateDoc(doc(fdb, 'players', id), sanitizeForFirestore(row));
     return { id, ...row };
@@ -873,6 +878,7 @@ export async function deletePlayer(id) {
     return;
   }
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('deletePlayer');
     await deleteDoc(doc(fdb, 'players', id));
     return;
@@ -977,6 +983,7 @@ export async function saveSkillSuggestionsBySuggester(input) {
   }
 
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('saveSkillSuggestionsBySuggester');
     const existingQ = query(
       collection(fdb, 'skill_suggestions'),
@@ -1136,6 +1143,7 @@ export async function savePrediction(input) {
   }
 
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('savePrediction');
     const q = query(
       collection(fdb, 'predictions'),
@@ -1222,6 +1230,7 @@ export async function saveTournament(payload) {
     return id;
   }
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('saveTournament');
     const ref = await addDoc(collection(fdb, 'tournaments'), sanitizeForFirestore(row));
     return ref.id;
@@ -1258,6 +1267,7 @@ export async function saveTournamentSnapshot(tournamentId, payload) {
     return id;
   }
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('saveTournamentSnapshot');
     const ref = await addDoc(
       collection(fdb, 'tournament_snapshots'),
@@ -1308,6 +1318,45 @@ export async function listTournaments() {
     ...row,
     eventDate: row?.payload?.eventDate || '',
   }));
+}
+
+/**
+ * Subscribe to the tournaments list. In firebase mode this is a true real-time
+ * Firestore listener; in other modes it falls back to polling so the scoreboard
+ * still refreshes on its own. Returns an unsubscribe function.
+ * @param {(rows: any[]|null, error: Error|null) => void} callback
+ */
+export function subscribeTournaments(callback, { intervalMs = 15000 } = {}) {
+  const mapRow = (row) => ({ ...row, eventDate: row?.payload?.eventDate || '' });
+
+  if (isFirebaseMode()) {
+    const fdb = ensureFirebaseDb('subscribeTournaments');
+    const q = query(collection(fdb, 'tournaments'), orderBy('created_at', 'desc'));
+    return onSnapshot(
+      q,
+      (snap) => callback(snap.docs.map((d) => mapRow({ id: d.id, ...d.data() })), null),
+      (err) => callback(null, err)
+    );
+  }
+
+  // Polling fallback (mock / supabase).
+  let cancelled = false;
+  let timer = null;
+  const tick = async () => {
+    try {
+      const rows = await listTournaments();
+      if (!cancelled) callback(rows, null);
+    } catch (err) {
+      if (!cancelled) callback(null, err);
+    } finally {
+      if (!cancelled) timer = setTimeout(tick, intervalMs);
+    }
+  };
+  tick();
+  return () => {
+    cancelled = true;
+    if (timer) clearTimeout(timer);
+  };
 }
 
 /** Load full tournament JSON by id. */
@@ -1365,6 +1414,7 @@ export async function deleteTournament(id) {
     return;
   }
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('deleteTournament');
     await deleteDoc(doc(fdb, 'tournaments', id));
     const snapQ = query(
@@ -1401,6 +1451,7 @@ export async function updateTournament(id, payload) {
     return;
   }
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('updateTournament');
     await updateDoc(
       doc(fdb, 'tournaments', id),
@@ -1447,6 +1498,7 @@ export async function updateTournamentStatus(id, status) {
     return;
   }
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('updateTournamentStatus');
     const currentSnap = await getDoc(doc(fdb, 'tournaments', id));
     if (!currentSnap.exists()) throw new Error('[updateTournamentStatus] Tournament not found');

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { computeStandings } from '../utils/tournament.js';
+import { resolveProfilePhotoUrl } from '../supabaseAdapter.js';
 
 function getTournamentMatches(payload) {
   const groups = (payload?.groupMatches || []).map((m) => ({ ...m, stage: 'Group' }));
@@ -14,42 +15,173 @@ function getTeamName(match, teamsById, side) {
   return match?.teamBDisplay || teamsById[match?.teamBId || '']?.name || 'TBD';
 }
 
-function getMatchPlayers(match, teamsById, playersById, side) {
+function getMatchPlayerObjs(match, teamsById, playersById, side) {
   const direct = side === 'A' ? match?.teamAPlayerIds : match?.teamBPlayerIds;
   const teamId = side === 'A' ? match?.teamAId : match?.teamBId;
   const fallback = teamsById[teamId || '']?.players || [];
   const ids = (direct?.length ? direct : fallback).filter(Boolean);
-  return ids.map((id) => playersById[id]?.name || '').filter(Boolean);
+  return ids
+    .map((id) => playersById[id])
+    .filter(Boolean)
+    .map((p) => ({ name: p.name || '', avatarUrl: resolveProfilePhotoUrl(p.avatarUrl) }));
+}
+
+function Avatars({ players }) {
+  if (!players?.length) return <span className="text-slate-400">TBD</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5 align-middle">
+      {players.map((p, i) => (
+        <span key={`${p.name}-${i}`} className="inline-flex items-center gap-1">
+          <span className="inline-flex h-6 w-6 overflow-hidden rounded-full border border-slate-200 dark:border-navy-700 bg-slate-100 dark:bg-navy-800 align-middle">
+            {p.avatarUrl ? (
+              <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                {(p.name || '?').charAt(0).toUpperCase()}
+              </span>
+            )}
+          </span>
+          <span>{String(p.name || '').split(/\s+/)[0]}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// Gathers every live match across all live tournaments for the TV view.
+function collectLiveMatches(tournaments) {
+  const out = [];
+  for (const row of tournaments || []) {
+    const payload = row?.payload || row || {};
+    const teamsById = Object.fromEntries((payload?.teams || []).map((tm) => [tm.id, tm]));
+    const playersById = Object.fromEntries((payload?.players || []).map((p) => [p.id, p]));
+    for (const m of getTournamentMatches(payload).filter((x) => x?.status === 'Live')) {
+      out.push({
+        key: `${row.id}-${m.stage}-${m.id}`,
+        tournamentName: row.name || payload.name || 'Tournament',
+        stage: `${m.stage}${m.label ? ' · ' + m.label : ''}`,
+        teamA: getTeamName(m, teamsById, 'A'),
+        teamB: getTeamName(m, teamsById, 'B'),
+        scoreA: m.scoreA ?? 0,
+        scoreB: m.scoreB ?? 0,
+      });
+    }
+  }
+  return out;
+}
+
+function DisplayMode({ tournaments, onExit }) {
+  const live = collectLiveMatches(tournaments);
+  const [idx, setIdx] = useState(0);
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const clock = setInterval(() => setNow(new Date()), 1000 * 30);
+    return () => clearInterval(clock);
+  }, []);
+
+  useEffect(() => {
+    if (live.length <= 1) return undefined;
+    const rotate = setInterval(() => setIdx((i) => (i + 1) % live.length), 6000);
+    return () => clearInterval(rotate);
+  }, [live.length]);
+
+  const match = live[idx % Math.max(1, live.length)];
+
+  return (
+    <div className="fixed inset-0 z-[70] flex flex-col bg-gradient-to-br from-navy-800 to-navy-900 text-white">
+      <div className="flex items-center justify-between px-5 py-3">
+        <div className="flex items-center gap-2 text-gold-300">
+          <span className="text-lg font-bold tracking-wide">Whitefeather · Live</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-navy-100">
+            {now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </span>
+          <button
+            type="button"
+            onClick={onExit}
+            className="rounded-lg border border-white/25 bg-white/10 dark:bg-navy-900/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
+          >
+            Exit
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-1 items-center justify-center px-4">
+        {!match ? (
+          <div className="text-center text-2xl font-semibold text-navy-100">No live matches right now.</div>
+        ) : (
+          <div className="w-full max-w-4xl text-center">
+            <div className="text-sm uppercase tracking-[0.3em] text-gold-300">{match.tournamentName}</div>
+            <div className="mt-1 text-base text-navy-100">{match.stage}</div>
+            <div className="mt-8 grid grid-cols-[1fr_auto_1fr] items-center gap-4 sm:gap-8">
+              <div className="min-w-0">
+                <div className="truncate text-2xl sm:text-4xl font-bold">{match.teamA}</div>
+                <div className="mt-3 text-7xl sm:text-9xl font-black text-emerald-300">{match.scoreA}</div>
+              </div>
+              <div className="text-3xl sm:text-5xl font-light text-navy-200">vs</div>
+              <div className="min-w-0">
+                <div className="truncate text-2xl sm:text-4xl font-bold">{match.teamB}</div>
+                <div className="mt-3 text-7xl sm:text-9xl font-black text-rose-300">{match.scoreB}</div>
+              </div>
+            </div>
+            {live.length > 1 && (
+              <div className="mt-10 flex items-center justify-center gap-2">
+                {live.map((_, i) => (
+                  <span
+                    key={i}
+                    className={`h-2 w-2 rounded-full ${i === idx % live.length ? 'bg-gold-400' : 'bg-white/25'}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function ScoreboardScreen({ tournaments, loading, error, onRefresh }) {
+  const [display, setDisplay] = useState(false);
   const liveTournaments = (tournaments || []).filter((t) => t?.status === 'Live');
 
   return (
     <section className="space-y-4">
-      <div className="rounded-2xl border border-sky-200 bg-gradient-to-r from-sky-50 via-cyan-50 to-emerald-50 p-3 sm:p-4 shadow-sm">
+      {display && <DisplayMode tournaments={tournaments} onExit={() => setDisplay(false)} />}
+
+      <div className="rounded-2xl border border-navy-200 bg-gradient-to-r from-navy-50 via-navy-50 to-white dark:to-navy-900 p-3 sm:p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-lg font-semibold text-slate-900">Scoreboard</div>
-            <div className="text-xs text-slate-600">Live tournaments with scores and standings.</div>
+            <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">Scoreboard</div>
+            <div className="text-xs text-slate-600 dark:text-slate-300">Live tournaments with scores and standings.</div>
           </div>
-          <button
-            className="px-3 py-2 rounded-lg border border-sky-200 bg-white/80 hover:bg-sky-50 text-sm"
-            onClick={onRefresh}
-          >
-            Refresh
-          </button>
+          <div className="flex gap-2">
+            <button
+              className="btn-primary"
+              onClick={() => setDisplay(true)}
+              disabled={liveTournaments.length === 0}
+              title={liveTournaments.length === 0 ? 'No live tournaments' : 'Open big-screen view'}
+            >
+              Display mode
+            </button>
+            <button className="btn-ghost" onClick={onRefresh}>
+              Refresh
+            </button>
+          </div>
         </div>
         {(error || loading) && (
-          <div className={`mt-2 text-sm ${error ? 'text-red-700' : 'text-slate-500'}`}>
+          <div className={`mt-2 text-sm ${error ? 'text-rose-700' : 'text-slate-500'}`}>
             {error || 'Loading tournaments...'}
           </div>
         )}
       </div>
 
       {liveTournaments.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white/95 p-4 text-sm text-slate-500 shadow-sm">
-          No live tournaments right now.
+        <div className="rounded-2xl border border-dashed border-slate-300 dark:border-navy-700 bg-white/70 dark:bg-navy-900/70 py-12 text-center shadow-sm">
+          <div className="text-sm font-medium text-slate-600 dark:text-slate-300">No live tournaments right now</div>
+          <p className="mt-1 text-xs text-slate-400">Start a match and it will appear here in real time.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -66,43 +198,40 @@ export default function ScoreboardScreen({ tournaments, loading, error, onRefres
             const standings = computeStandings(pools, teams, payload?.groupMatches || [], pointSystem);
 
             return (
-              <div key={row.id} className="rounded-2xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm space-y-3">
+              <div key={row.id} className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <div className="text-sm text-slate-500">Live Tournament</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">Live Tournament</div>
                     <div className="text-lg font-semibold">{row.name || payload.name || 'Tournament'}</div>
                   </div>
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs border bg-orange-50 text-orange-700 border-orange-200">
-                    Live
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs border bg-orange-50 text-orange-700 border-orange-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" /> Live
                   </span>
                 </div>
 
                 <div>
-                  <div className="text-sm font-semibold text-slate-700">Live Matches</div>
+                  <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Live Matches</div>
                   {liveMatches.length === 0 ? (
-                    <div className="text-sm text-slate-500 mt-1">No live matches.</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">No live matches.</div>
                   ) : (
                     <div className="mt-2 space-y-2">
                       {liveMatches.map((m) => {
                         const teamA = getTeamName(m, teamsById, 'A');
                         const teamB = getTeamName(m, teamsById, 'B');
-                        const teamAPlayers = getMatchPlayers(m, teamsById, playersById, 'A');
-                        const teamBPlayers = getMatchPlayers(m, teamsById, playersById, 'B');
+                        const teamAPlayers = getMatchPlayerObjs(m, teamsById, playersById, 'A');
+                        const teamBPlayers = getMatchPlayerObjs(m, teamsById, playersById, 'B');
                         return (
-                          <div key={`${m.stage}-${m.id}`} className="rounded-xl border border-sky-200/70 p-2.5 bg-gradient-to-br from-white via-sky-50 to-cyan-50/70">
+                          <div key={`${m.stage}-${m.id}`} className="rounded-xl border border-navy-200/70 p-2.5 bg-gradient-to-br from-white dark:from-navy-900 to-navy-50/70">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="text-sm font-medium">{m.stage} {m.label || ''}</div>
-                              <div className="text-sm font-semibold">
+                              <div className="text-base font-bold text-navy-800">
                                 {m.scoreA ?? '-'} : {m.scoreB ?? '-'}
                               </div>
                             </div>
-                            <div className="mt-1 text-sm text-slate-700">
-                              {teamA} vs {teamB}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-500">
-                              {teamAPlayers.length ? teamAPlayers.join(', ') : 'TBD'}
-                              {' '}|{' '}
-                              {teamBPlayers.length ? teamBPlayers.join(', ') : 'TBD'}
+                            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-600 dark:text-slate-300">
+                              <Avatars players={teamAPlayers} />
+                              <span className="text-slate-400">vs</span>
+                              <Avatars players={teamBPlayers} />
                             </div>
                           </div>
                         );
@@ -112,21 +241,21 @@ export default function ScoreboardScreen({ tournaments, loading, error, onRefres
                 </div>
 
                 <div>
-                  <div className="text-sm font-semibold text-slate-700">Team Standings</div>
+                  <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Team Standings</div>
                   {pools.length === 0 ? (
-                    <div className="text-sm text-slate-500 mt-1">No group standings available.</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">No group standings available.</div>
                   ) : (
                     <div className="mt-2 space-y-2">
                       {pools.map((pool, idx) => {
                         const rows = standings[pool.id] || [];
                         if (rows.length === 0) return null;
                         return (
-                          <div key={pool.id} className="rounded-xl border border-emerald-200/70 p-2.5 bg-gradient-to-br from-white via-emerald-50 to-emerald-100/60">
-                            <div className="text-xs font-semibold text-emerald-700">{pool.name || `Group ${idx + 1}`}</div>
+                          <div key={pool.id} className="rounded-xl border border-slate-200 dark:border-navy-700 p-2.5 bg-white dark:bg-navy-900">
+                            <div className="text-xs font-semibold text-navy-700">{pool.name || `Group ${idx + 1}`}</div>
                             <div className="mt-1 overflow-x-auto">
                               <table className="w-full table-fixed text-xs">
                                 <thead>
-                                  <tr className="text-left text-slate-500">
+                                  <tr className="text-left text-slate-500 dark:text-slate-400">
                                     <th className="py-1 pr-2 w-[56%]">Team</th>
                                     <th className="py-1 pr-2 w-[11%] text-right">Pts</th>
                                     <th className="py-1 pr-2 w-[11%] text-right">W</th>

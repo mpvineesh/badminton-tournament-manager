@@ -1,5 +1,6 @@
 import React from 'react';
 import { resolveProfilePhotoUrl } from '../supabaseAdapter.js';
+import { computeStreak, computeHeadToHead, computePartnerSynergy } from '../utils/playerStats.js';
 
 function parseScore(value) {
   if (value === '' || value == null) return null;
@@ -216,15 +217,24 @@ export default function PlayerStatsScreen({
     };
   }, [rows]);
 
+  const analytics = React.useMemo(() => {
+    const completed = rows.filter((m) => m.completed);
+    return {
+      streak: computeStreak(rows),
+      headToHead: computeHeadToHead(completed),
+      partners: computePartnerSynergy(completed),
+    };
+  }, [rows]);
+
   const avatarUrl = resolveProfilePhotoUrl(player?.avatarUrl);
 
   if (!player?.id) {
     return (
       <section className="space-y-4">
-        <div className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm">
-          <div className="text-sm text-slate-500">Player not found.</div>
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-4 shadow-sm">
+          <div className="text-sm text-slate-500 dark:text-slate-400">Player not found.</div>
           <button
-            className="mt-3 px-3 py-2 rounded-lg border hover:bg-slate-100"
+            className="mt-3 btn-ghost"
             onClick={onBack}
           >
             Back to Players
@@ -236,28 +246,28 @@ export default function PlayerStatsScreen({
 
   return (
     <section className="space-y-4">
-      <div className="rounded-2xl border border-cyan-200/70 bg-gradient-to-r from-cyan-50 via-white to-blue-50 p-4 shadow-sm">
+      <div className="rounded-2xl border border-navy-700 bg-gradient-to-r from-navy-800 to-navy-900 p-4 shadow-md text-white">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="h-16 w-16 overflow-hidden rounded-full border border-slate-200 bg-slate-50">
+            <div className="h-16 w-16 overflow-hidden rounded-full border-2 border-gold-400/70 bg-slate-50 dark:bg-navy-800">
               {avatarUrl ? (
                 <img src={avatarUrl} alt={`${player.name} avatar`} className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-xl font-semibold text-slate-500">
+                <div className="flex h-full w-full items-center justify-center text-xl font-semibold text-navy-700">
                   {String(player.name || 'P').charAt(0).toUpperCase()}
                 </div>
               )}
             </div>
             <div className="min-w-0">
-              <div className="text-xl font-semibold truncate">{player.name}</div>
-              <div className="text-sm text-slate-600">
+              <div className="text-xl font-semibold truncate text-white">{player.name}</div>
+              <div className="text-sm text-navy-100">
                 Skill {player.skill ?? '-'} | Age {player.age ?? '-'}
               </div>
-              <div className="text-xs text-slate-500">{player.mobile || '-'}</div>
+              <div className="text-xs text-navy-200">{player.mobile || '-'}</div>
             </div>
           </div>
           <button
-            className="px-3 py-2 rounded-lg border border-cyan-200 bg-white/80 text-cyan-900 hover:bg-cyan-50"
+            className="px-3 py-2 rounded-lg border border-white/25 bg-white/10 dark:bg-navy-900/10 text-white hover:bg-white/20"
             onClick={onBack}
           >
             Back to Players
@@ -266,9 +276,9 @@ export default function PlayerStatsScreen({
       </div>
 
       {(tournamentsError || tournamentsLoading) && (
-        <div className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-4 shadow-sm">
           {tournamentsLoading ? (
-            <div className="text-sm text-slate-500">Refreshing tournaments for stats...</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">Refreshing tournaments for stats...</div>
           ) : (
             <div className="text-sm text-amber-700">{tournamentsError}</div>
           )}
@@ -276,51 +286,105 @@ export default function PlayerStatsScreen({
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-emerald-100/70 p-3 shadow-sm">
-          <div className="text-xs uppercase tracking-wide text-emerald-700">Record</div>
-          <div className="mt-1 text-sm text-emerald-900">{summary.won}W - {summary.lost}L</div>
-          <div className="text-2xl font-semibold text-emerald-800">{summary.winRate}%</div>
+        <div className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-3 shadow-sm">
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Record</div>
+          <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">{summary.won}W - {summary.lost}L</div>
+          <div className="text-2xl font-semibold text-navy-800">{summary.winRate}%</div>
+          {analytics.streak.type && (
+            <div
+              className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                analytics.streak.type === 'W'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-rose-500 text-white'
+              }`}
+            >
+              {analytics.streak.count} {analytics.streak.type === 'W' ? 'win' : 'loss'}
+              {analytics.streak.count > 1 ? 's' : ''} in a row
+            </div>
+          )}
         </div>
-        <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-orange-50 via-white to-amber-100/70 p-3 shadow-sm">
-          <div className="text-xs uppercase tracking-wide text-orange-700">Matches</div>
-          <div className="mt-1 text-sm text-orange-900">Played {summary.played}</div>
-          <div className="text-2xl font-semibold text-orange-800">Live {summary.live}</div>
+        <div className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-3 shadow-sm">
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Matches</div>
+          <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">Played {summary.played}</div>
+          <div className="text-2xl font-semibold text-navy-800">Live {summary.live}</div>
         </div>
-        <div className="rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-100/70 p-3 shadow-sm">
-          <div className="text-xs uppercase tracking-wide text-cyan-700">Points</div>
-          <div className="mt-1 text-sm text-cyan-900">For {summary.pointsFor}</div>
-          <div className="text-2xl font-semibold text-cyan-800">Against {summary.pointsAgainst}</div>
+        <div className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-3 shadow-sm">
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Points</div>
+          <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">For {summary.pointsFor}</div>
+          <div className="text-2xl font-semibold text-navy-800">Against {summary.pointsAgainst}</div>
         </div>
-        <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-fuchsia-100/70 p-3 shadow-sm">
-          <div className="text-xs uppercase tracking-wide text-violet-700">Tournaments</div>
-          <div className="mt-1 text-sm text-violet-900">Upcoming matches {summary.upcoming}</div>
-          <div className="text-2xl font-semibold text-violet-800">{summary.tournamentsPlayed}</div>
+        <div className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-3 shadow-sm">
+          <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Tournaments</div>
+          <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">Upcoming matches {summary.upcoming}</div>
+          <div className="text-2xl font-semibold text-navy-800">{summary.tournamentsPlayed}</div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-cyan-50/40 to-sky-50/70 p-3 sm:p-4 shadow-sm">
+      {summary.played > 0 && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
+            <div className="mb-2 font-semibold">Head-to-head</div>
+            {analytics.headToHead.length === 0 ? (
+              <div className="text-sm text-slate-500 dark:text-slate-400">No completed matches yet.</div>
+            ) : (
+              <div className="space-y-1.5">
+                {analytics.headToHead.slice(0, 6).map((h) => (
+                  <div key={h.opponent} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate text-slate-700 dark:text-slate-200">{h.opponent}</span>
+                    <span className="shrink-0 font-medium">
+                      <span className="text-emerald-700">{h.wins}W</span>
+                      <span className="text-slate-400"> · </span>
+                      <span className="text-rose-600">{h.losses}L</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
+            <div className="mb-2 font-semibold">Partners</div>
+            {analytics.partners.length === 0 ? (
+              <div className="text-sm text-slate-500 dark:text-slate-400">No completed matches yet.</div>
+            ) : (
+              <div className="space-y-1.5">
+                {analytics.partners.slice(0, 6).map((p) => (
+                  <div key={p.partner} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate text-slate-700 dark:text-slate-200">{p.partner}</span>
+                    <span className="shrink-0 font-medium text-slate-600 dark:text-slate-300">
+                      {p.won}/{p.played} · <span className="text-navy-700">{p.winRate}%</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-3 sm:p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="font-semibold">Recent Matches</div>
-            <div className="text-xs text-slate-500">Latest tournaments and results</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">Latest tournaments and results</div>
           </div>
         </div>
 
         {rows.length === 0 ? (
-          <div className="text-sm text-slate-500">No matches found for this player yet.</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">No matches found for this player yet.</div>
         ) : (
           <div className="space-y-2">
             {rows.slice(0, 30).map((item) => (
-              <div key={item.id} className="rounded-xl border border-slate-200/90 bg-white/90 p-2.5 sm:p-3 shadow-sm">
+              <div key={item.id} className="rounded-xl border border-slate-200/90 bg-white/90 dark:bg-navy-900/90 p-2.5 sm:p-3 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0">
                     <button
-                      className="truncate text-left font-medium text-sky-700 hover:text-sky-800 hover:underline"
+                      className="truncate text-left font-medium text-navy-700 hover:text-navy-900 hover:underline"
                       onClick={() => item.tournamentId && onOpenTournament(item.tournamentId)}
                     >
                       {item.tournamentName}
                     </button>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
                       {item.stage}{item.label ? ` | ${item.label}` : ''} | {item.whenText}
                     </div>
                   </div>
@@ -331,10 +395,10 @@ export default function PlayerStatsScreen({
                 <div className="mt-1.5 text-sm">
                   <span className="font-medium">{item.ownTeamName}</span> vs <span className="font-medium">{item.opponentTeamName}</span>
                 </div>
-                <div className="mt-1 text-xs text-slate-600">
+                <div className="mt-1 text-xs text-slate-600 dark:text-slate-300">
                   {item.partnerNames.length > 0 ? `Partner: ${item.partnerNames.join(', ')}` : 'No partner data'}
                 </div>
-                <div className="text-xs text-slate-600">
+                <div className="text-xs text-slate-600 dark:text-slate-300">
                   Opponents: {item.opponentNames.length > 0 ? item.opponentNames.join(', ') : 'TBD'}
                 </div>
                 <div className="mt-1 text-sm">

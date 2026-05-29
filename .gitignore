@@ -1,4 +1,7 @@
-node_modules\.env
+node_modules
 dist
 build
-node_modules
+
+# Firebase service account key (used only for the one-time data migration)
+scripts/serviceAccountKey.json
+serviceAccountKey.json

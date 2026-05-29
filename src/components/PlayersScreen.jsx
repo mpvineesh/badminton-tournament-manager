@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { resolveProfilePhotoUrl } from '../supabaseAdapter.js';
+import React, { useRef, useState } from 'react';
+import { resolveProfilePhotoUrl, uploadPlayerProfilePhoto } from '../supabaseAdapter.js';
 
 const initialForm = {
   name: '',
@@ -28,12 +28,73 @@ export default function PlayersScreen({
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState(initialForm);
   const [localError, setLocalError] = useState('');
+  const [query, setQuery] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [photoBusyId, setPhotoBusyId] = useState(null);
+  const fileInputRef = useRef(null);
+  const pendingPlayerRef = useRef(null);
+
+  function pickPhotoFor(player) {
+    if (!isAdmin || !player?.id) return;
+    pendingPlayerRef.current = player;
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  }
+
+  async function onPhotoChosen(e) {
+    const file = e.target.files?.[0];
+    const player = pendingPlayerRef.current;
+    if (!file || !player?.id) return;
+    if (!String(file.type || '').startsWith('image/')) {
+      setLocalError('Please choose an image file.');
+      return;
+    }
+    setLocalError('');
+    setPhotoBusyId(player.id);
+    try {
+      const uploaded = await uploadPlayerProfilePhoto(player.id, file);
+      const avatarUrl = String(uploaded?.url || '').trim();
+      await onUpdatePlayer(player.id, {
+        name: player.name,
+        age: player.age,
+        mobile: player.mobile,
+        skill: player.skill,
+        role: player.role || 'player',
+        avatarUrl,
+      });
+    } catch (err) {
+      setLocalError(err?.message || 'Unable to upload photo.');
+    } finally {
+      setPhotoBusyId(null);
+      pendingPlayerRef.current = null;
+    }
+  }
+
+  const visiblePlayers = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = (players || []).filter((p) => {
+      if (!q) return true;
+      return (
+        String(p?.name || '').toLowerCase().includes(q) ||
+        String(p?.mobile || '').toLowerCase().includes(q)
+      );
+    });
+    const sorted = [...filtered];
+    if (sortBy === 'skill-desc') sorted.sort((a, b) => (b?.skill || 0) - (a?.skill || 0));
+    else if (sortBy === 'skill-asc') sorted.sort((a, b) => (a?.skill || 0) - (b?.skill || 0));
+    else sorted.sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')));
+    return sorted;
+  }, [players, query, sortBy]);
 
   function normalizePayload(raw) {
     return {
       name: String(raw.name || '').trim(),
       age: Number(raw.age),
-      mobile: String(raw.mobile || '').trim(),
+      // Keep digits only — strips spaces, +country codes, and stray invisible
+      // characters that have crept into some records.
+      mobile: String(raw.mobile || '').replace(/\D/g, ''),
       skill: Number(raw.skill),
       role: String(raw.role || 'player').toLowerCase() === 'admin' ? 'admin' : 'player',
     };
@@ -44,6 +105,7 @@ export default function PlayersScreen({
     if (!p.name) return 'Name is required.';
     if (!Number.isInteger(p.age) || p.age < 1) return 'Age should be a positive whole number.';
     if (!p.mobile) return 'Mobile is required.';
+    if (p.mobile.length !== 10) return 'Mobile number must be exactly 10 digits.';
     if (!Number.isInteger(p.skill) || p.skill < 1 || p.skill > 10) {
       return 'Skill level should be between 1 and 10.';
     }
@@ -87,37 +149,65 @@ export default function PlayersScreen({
     }
   }
 
-  function renderAvatar(player, sizeClass = 'h-10 w-10') {
+  function renderAvatar(player, sizeClass = 'h-10 w-10', editable = false) {
     const avatarUrl = resolveProfilePhotoUrl(player?.avatarUrl);
     const label = String(player?.name || 'Player').trim();
     const initial = label ? label.charAt(0).toUpperCase() : 'P';
-    return (
-      <div className={`${sizeClass} overflow-hidden rounded-full border border-slate-200 bg-slate-50`}>
+    const busy = photoBusyId === player?.id;
+    const inner = (
+      <div className={`${sizeClass} relative overflow-hidden rounded-full border border-slate-200 dark:border-navy-700 bg-slate-50`}>
         {avatarUrl ? (
           <img src={avatarUrl} alt={`${label || 'Player'} avatar`} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
+          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500 dark:text-slate-400">
             {initial}
           </div>
         )}
+        {editable && (
+          <div className="absolute inset-x-0 bottom-0 flex items-center justify-center bg-black/45 py-0.5 text-[9px] font-medium text-white">
+            {busy ? '…' : 'Edit'}
+          </div>
+        )}
       </div>
+    );
+    if (!editable) return inner;
+    return (
+      <button
+        type="button"
+        title="Change photo"
+        disabled={busy}
+        className="rounded-full focus:outline-none focus:ring-2 focus:ring-navy-400"
+        onClick={(e) => {
+          e.stopPropagation();
+          pickPhotoFor(player);
+        }}
+      >
+        {inner}
+      </button>
     );
   }
 
   return (
     <section className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-white to-cyan-50/40 p-4 shadow-sm">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onPhotoChosen}
+      />
+      <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-gradient-to-r from-white dark:from-navy-900 to-navy-50/40 p-4 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-lg font-semibold">Players</div>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               View, add, edit, and delete player records.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             {isAdmin && (
               <button
-                className="w-full sm:w-auto px-3 py-2 rounded-lg border hover:bg-slate-100"
+                className="w-full sm:w-auto btn-ghost"
                 onClick={() => {
                   setLocalError('');
                   setForm(initialForm);
@@ -128,7 +218,7 @@ export default function PlayersScreen({
               </button>
             )}
             <button
-              className="w-full sm:w-auto px-3 py-2 rounded-lg border hover:bg-slate-100"
+              className="w-full sm:w-auto btn-ghost"
               onClick={onRefresh}
             >
               Refresh
@@ -137,29 +227,66 @@ export default function PlayersScreen({
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
-        <div className="font-semibold mb-2 sm:mb-3">Player List</div>
-        {/* {!isAdmin && (
-          <div className="mb-3 text-xs text-slate-500">
-            Only admins can add, edit, or delete players.
+      <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="font-semibold">
+            Player List
+            {!loading && players.length > 0 && (
+              <span className="ml-2 text-sm font-normal text-slate-400">
+                {query.trim() ? `${visiblePlayers.length} of ${players.length}` : players.length}
+              </span>
+            )}
           </div>
-        )} */}
+          {players.length > 0 && (
+            <div className="flex gap-2">
+              <input
+                className="min-w-0 flex-1 sm:w-56 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-400"
+                placeholder="Search name or mobile…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <select
+                className="px-2 py-2 border rounded-lg bg-white dark:bg-navy-900 text-sm"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                aria-label="Sort players"
+              >
+                <option value="name">Name (A–Z)</option>
+                <option value="skill-desc">Skill (high→low)</option>
+                <option value="skill-asc">Skill (low→high)</option>
+              </select>
+            </div>
+          )}
+        </div>
         {(localError || error) && (
           <div className="mb-3 text-sm text-red-700">{localError || error}</div>
         )}
         {loading ? (
-          <div className="text-sm text-slate-500">Loading players…</div>
+          <div className="space-y-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100 dark:bg-navy-800" />
+            ))}
+          </div>
         ) : players.length === 0 ? (
-          <div className="text-sm text-slate-500">No players found.</div>
+          <div className="rounded-lg border border-dashed border-slate-300 dark:border-navy-700 py-10 text-center">
+            <div className="text-sm font-medium text-slate-600 dark:text-slate-300">No players yet</div>
+            <p className="mt-1 text-xs text-slate-400">
+              {isAdmin ? 'Add your first player to get started.' : 'Players will appear here once added.'}
+            </p>
+          </div>
+        ) : visiblePlayers.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-300 dark:border-navy-700 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+            No players match “{query.trim()}”.
+          </div>
         ) : (
           <div className="space-y-2 sm:space-y-3">
             <div className="sm:hidden space-y-2">
-              {players.map((p) => {
+              {visiblePlayers.map((p) => {
                 const editing = editId === p.id;
                 return (
                   <div
                     key={p.id}
-                    className={`rounded-lg border px-3 py-2.5 bg-white ${editing ? '' : 'cursor-pointer hover:bg-slate-50'}`}
+                    className={`rounded-lg border px-3 py-2.5 bg-white dark:bg-navy-900 ${editing ? '' : 'cursor-pointer hover:bg-slate-50'}`}
                     onClick={() => {
                       if (editing) return;
                       onOpenStats?.(p);
@@ -198,7 +325,7 @@ export default function PlayersScreen({
                           />
                         </div>
                         <select
-                          className="w-full px-2 py-1.5 border rounded bg-white"
+                          className="w-full px-2 py-1.5 border rounded bg-white dark:bg-navy-900"
                           value={editForm.role}
                           onChange={(e) =>
                             setEditForm((f) => ({ ...f, role: e.target.value }))
@@ -236,17 +363,17 @@ export default function PlayersScreen({
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="font-semibold">{p.name}</div>
-                            <div className="mt-0.5 text-sm text-slate-600 leading-6">
+                            <div className="mt-0.5 text-sm text-slate-600 dark:text-slate-300 leading-6">
                               Age: {p.age ?? '-'} | Skill: {p.skill}
                             </div>
-                            <div className="text-sm text-slate-600 leading-6">Mobile: {p.mobile || '-'}</div>
+                            <div className="text-sm text-slate-600 dark:text-slate-300 leading-6">Mobile: {p.mobile || '-'}</div>
                             {isAdmin && (
-                              <div className="text-sm text-slate-600 leading-6">
+                              <div className="text-sm text-slate-600 dark:text-slate-300 leading-6">
                                 Role: {p.role === 'admin' ? 'Admin' : 'Player'}
                               </div>
                             )}
                           </div>
-                          {renderAvatar(p, 'h-14 w-14')}
+                          {renderAvatar(p, 'h-14 w-14', isAdmin)}
                         </div>
                         {isAdmin && (
                           <div className="mt-2 flex gap-1.5">
@@ -280,7 +407,7 @@ export default function PlayersScreen({
 
             <div className="hidden sm:block overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-left text-slate-500">
+                <thead className="bg-slate-50 dark:bg-navy-800 text-left text-slate-500 dark:text-slate-400">
                   <tr>
                     <th className="p-2">Photo</th>
                     <th className="p-2">Name</th>
@@ -292,7 +419,7 @@ export default function PlayersScreen({
                   </tr>
                 </thead>
                 <tbody>
-                  {players.map((p) => {
+                  {visiblePlayers.map((p) => {
                     const editing = editId === p.id;
                     return (
                       <tr
@@ -304,7 +431,7 @@ export default function PlayersScreen({
                         }}
                       >
                         <td className="p-2 align-middle">
-                          {renderAvatar(p, 'h-9 w-9')}
+                          {renderAvatar(p, 'h-11 w-11', isAdmin)}
                         </td>
                         <td className="p-2">
                           {editing ? (
@@ -367,7 +494,7 @@ export default function PlayersScreen({
                           <td className="p-2">
                             {editing ? (
                               <select
-                                className="w-28 px-2 py-1 border rounded bg-white"
+                                className="w-28 px-2 py-1 border rounded bg-white dark:bg-navy-900"
                                 value={editForm.role}
                                 onChange={(e) =>
                                   setEditForm((f) => ({ ...f, role: e.target.value }))
@@ -435,7 +562,7 @@ export default function PlayersScreen({
 
       {isAdmin && addOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-end sm:items-center justify-center p-3 sm:p-4">
-          <div className="w-full max-w-3xl rounded-xl border bg-white shadow-lg">
+          <div className="w-full max-w-3xl rounded-xl border bg-white dark:bg-navy-900 shadow-lg">
             <div className="p-4 border-b flex items-center justify-between">
               <div className="font-semibold">Add Player</div>
               <button
@@ -477,7 +604,7 @@ export default function PlayersScreen({
                   onChange={(e) => setForm((f) => ({ ...f, skill: e.target.value }))}
                 />
                 <select
-                  className="px-3 py-2 border rounded-lg bg-white"
+                  className="px-3 py-2 border rounded-lg bg-white dark:bg-navy-900"
                   value={form.role}
                   onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
                 >

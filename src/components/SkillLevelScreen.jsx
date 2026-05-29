@@ -85,11 +85,11 @@ export default function SkillLevelScreen({
 
   return (
     <section className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
+      <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="font-semibold text-lg">Skill Level</div>
-            <div className="text-sm text-slate-500">
+            <div className="text-sm text-slate-500 dark:text-slate-400">
               Suggest skill levels (1-10) for other players.
             </div>
           </div>
@@ -100,7 +100,7 @@ export default function SkillLevelScreen({
             Refresh
           </button> */}
         </div>
-        {/* <div className="mt-2 text-xs text-slate-500">
+        {/* <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
           Logged in as: <span className="font-medium">{currentPlayer?.name || 'Unknown user'}</span>
         </div> */}
       </div>
@@ -117,16 +117,16 @@ export default function SkillLevelScreen({
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
+      <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
         <div className="font-semibold mb-3">Bulk Suggestion</div>
         {loading ? (
-          <div className="text-sm text-slate-500">Loading players...</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Loading players...</div>
         ) : suggestionRows.length === 0 ? (
-          <div className="text-sm text-slate-500">No players available.</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">No players available.</div>
         ) : (
           <>
             <div className="space-y-2 rounded-lg border p-2 sm:p-3">
-              <div className="grid grid-cols-[minmax(0,1fr)_68px_56px] sm:grid-cols-[minmax(0,1fr)_110px_64px] gap-2 px-2 py-1 text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <div className="grid grid-cols-[minmax(0,1fr)_68px_56px] sm:grid-cols-[minmax(0,1fr)_110px_64px] gap-2 px-2 py-1 text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 <div>Player</div>
                 <div>Current Skill</div>
                 <div>Suggested</div>
@@ -136,20 +136,20 @@ export default function SkillLevelScreen({
                 return (
                   <div
                     key={`sugg-${p.id}`}
-                    className="grid grid-cols-[minmax(0,1fr)_68px_56px] sm:grid-cols-[minmax(0,1fr)_110px_64px] items-center gap-2 rounded-lg border bg-white px-2.5 py-2"
+                    className="grid grid-cols-[minmax(0,1fr)_68px_56px] sm:grid-cols-[minmax(0,1fr)_110px_64px] items-center gap-2 rounded-lg border bg-white dark:bg-navy-900 px-2.5 py-2"
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-sm sm:text-base font-medium text-slate-900">
+                      <div className="truncate text-sm sm:text-base font-medium text-slate-900 dark:text-slate-100">
                         {p.name}
                         {isCurrent ? ' (You)' : ''}
                       </div>
                     </div>
-                    <div className="text-sm text-slate-600">
+                    <div className="text-sm text-slate-600 dark:text-slate-300">
                       {p.skill ?? '-'}
                     </div>
                     <div>
                       {isCurrent ? (
-                        <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium text-slate-600 whitespace-nowrap">
+                        <span className="inline-flex rounded-full border border-slate-200 dark:border-navy-700 bg-slate-50 dark:bg-navy-800 px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">
                           No input
                         </span>
                       ) : (
@@ -163,7 +163,7 @@ export default function SkillLevelScreen({
                             setLocalError('');
                             setLocalNotice('');
                           }}
-                          className="w-[52px] px-1.5 py-0.5 text-xs border rounded bg-white"
+                          className="w-[52px] px-1.5 py-0.5 text-xs border rounded bg-white dark:bg-navy-900"
                           placeholder="1-10"
                         />
                       )}
@@ -186,7 +186,7 @@ export default function SkillLevelScreen({
       </div>
 
       {isAdmin && (
-        <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="font-semibold">Average Suggested Skills </div>
             <button
@@ -198,16 +198,16 @@ export default function SkillLevelScreen({
             </button>
           </div>
           {averagesLoading ? (
-            <div className="text-sm text-slate-500">Loading averages...</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">Loading averages...</div>
           ) : (
             <>
               <div className="sm:hidden space-y-2">
                 {adminPlayers.map((p) => {
                   const avg = averagesByPlayer.get(p.id);
                   return (
-                    <div key={`avg-${p.id}`} className="rounded-lg border px-3 py-2 bg-white">
+                    <div key={`avg-${p.id}`} className="rounded-lg border px-3 py-2 bg-white dark:bg-navy-900">
                       <div className="font-medium">{p.name}</div>
-                      <div className="text-sm text-slate-600">
+                      <div className="text-sm text-slate-600 dark:text-slate-300">
                         Avg: {avg ? avg.averageSkill : '-'} ({avg?.votes || 0} votes)
                       </div>
                     </div>
@@ -216,7 +216,7 @@ export default function SkillLevelScreen({
               </div>
               <div className="hidden sm:block overflow-x-auto rounded-lg border">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-left text-slate-500">
+                  <thead className="bg-slate-50 dark:bg-navy-800 text-left text-slate-500 dark:text-slate-400">
                     <tr>
                       <th className="p-2">Player</th>
                       <th className="p-2">Avg Suggested Skill</th>

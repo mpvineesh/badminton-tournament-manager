@@ -19,7 +19,7 @@ export default function Stepper({ step, setStep }) {
                 ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
                 : step > s.id
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                  : 'bg-white border-slate-200 hover:border-slate-300'
+                  : 'bg-white border-slate-200 dark:border-navy-700 hover:border-slate-300'
             }`}
           >
             <div

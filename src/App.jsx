@@ -12,6 +12,8 @@ import MatchesTable from './components/MatchesTable.jsx';
 import BulkTeamEditor from './components/BulkTeamEditor.jsx';
 import PlayerPickerModal from './components/PlayerPickerModal.jsx';
 import AppHeader from './components/AppHeader.jsx';
+import BottomNav from './components/BottomNav.jsx';
+import Toast from './components/Toast.jsx';
 import HomeScreen from './components/HomeScreen.jsx';
 import PlayersScreen from './components/PlayersScreen.jsx';
 import PlayerStatsScreen from './components/PlayerStatsScreen.jsx';
@@ -33,12 +35,15 @@ import {
 } from './utils/analytics.js';
 
 import useTournamentState from './hooks/useTournamentState.js';
+import { useBackNavigation, pathToNav } from './hooks/useBackNavigation.js';
+import { findPlayerMatches } from './utils/matchAlerts.js';
+import { notificationsSupported, notificationPermission, showAppNotification } from './utils/notifications.js';
 import {
   createPlayer,
   deletePlayer,
   listPlayers,
-  seedDummyPlayersOnce,
   listTournaments,
+  subscribeTournaments,
   loadTournament,
   saveTournament,
   updateTournament,
@@ -140,17 +145,56 @@ export default function App() {
   const autoSemisInProgressRef = useRef(false);
   const menuRef = useRef(null);
   const messageTopRef = useRef(null);
+  const lastMatchStatusRef = useRef(null);
+  const [toasts, setToasts] = useState([]);
+
+  function dismissToast(id) {
+    setToasts((list) => list.filter((t) => t.id !== id));
+  }
+
+  function pushToast(message, type = 'success') {
+    if (!message) return;
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setToasts((list) => [...list, { id, message: String(message), type }]);
+    setTimeout(() => dismissToast(id), 3500);
+  }
+
+  useBackNavigation({
+    isLoggedIn,
+    activeMenu,
+    setActiveMenu,
+    tournamentView,
+    setTournamentView,
+    selectedTournament,
+    setSelectedTournament,
+    loadTournament,
+  });
 
   useEffect(() => {
     initAnalytics();
     const storedMobile = window.localStorage.getItem(AUTH_MOBILE_KEY);
     if (storedMobile) {
-      const savedMenu = String(window.localStorage.getItem(ACTIVE_MENU_KEY) || '').trim();
-      const restoredMenu = savedMenu === 'tournament'
-        ? 'tournaments'
-        : (RESTORABLE_MENUS.has(savedMenu) ? savedMenu : 'home');
       setIsLoggedIn(true);
-      setActiveMenu(restoredMenu);
+      // Prefer a deep-link URL (e.g. /players, /tournament/:id) over the saved
+      // menu, but a plain launch at "/" resumes the last screen.
+      const pathname = window.location.pathname;
+      const atRoot = (pathname.replace(/\/+$/, '') || '/') === '/';
+      const urlNav = pathToNav(pathname);
+      if (!atRoot && urlNav && urlNav.activeMenu !== 'login') {
+        setActiveMenu(urlNav.activeMenu);
+        setTournamentView(urlNav.tournamentView || 'list');
+        if (urlNav.selectedTournamentId) {
+          loadTournament(urlNav.selectedTournamentId)
+            .then((data) => setSelectedTournament(data))
+            .catch(() => {});
+        }
+      } else {
+        const savedMenu = String(window.localStorage.getItem(ACTIVE_MENU_KEY) || '').trim();
+        const restoredMenu = savedMenu === 'tournament'
+          ? 'tournaments'
+          : (RESTORABLE_MENUS.has(savedMenu) ? savedMenu : 'home');
+        setActiveMenu(restoredMenu);
+      }
     } else {
       setIsLoggedIn(false);
       window.localStorage.removeItem(ACTIVE_MENU_KEY);
@@ -181,6 +225,64 @@ export default function App() {
       refreshTournamentsList();
     }
   }, [activeMenu]);
+
+  // Keep the tournaments list live so the scoreboard and home reflect ongoing
+  // matches without a manual refresh (real-time in firebase mode, polling
+  // otherwise). Also feeds match notifications (see notification effect).
+  useEffect(() => {
+    if (!isLoggedIn) return undefined;
+    const unsubscribe = subscribeTournaments((rows, err) => {
+      if (err) {
+        console.error(err);
+        return;
+      }
+      const normalized = Array.isArray(rows) ? rows : [];
+      const seen = new Set();
+      const deduped = normalized.filter((row) => {
+        if (!row?.id) return true;
+        if (seen.has(row.id)) return false;
+        seen.add(row.id);
+        return true;
+      });
+      setTournamentsList(deduped);
+    });
+    return () => {
+      try {
+        unsubscribe?.();
+      } catch {
+        /* noop */
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
+  // Fire a foreground notification when one of the logged-in player's matches
+  // transitions to Live. Seeds on the first snapshot so we don't alert for
+  // matches that were already live when the app opened.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (!notificationsSupported() || notificationPermission() !== 'granted') return;
+    const me = getLoggedInPlayerFromList(playersDbList);
+    if (!me) return;
+    const matches = findPlayerMatches(tournamentsList, me);
+    const prev = lastMatchStatusRef.current;
+    const curr = new Map(matches.map((m) => [m.key, m.status]));
+    if (prev === null) {
+      lastMatchStatusRef.current = curr;
+      return;
+    }
+    for (const m of matches) {
+      const before = prev.get(m.key);
+      if (m.status === 'Live' && before && before !== 'Live') {
+        showAppNotification('Your match is starting 🏸', {
+          body: `${m.label} vs ${m.opponentName} — ${m.tournamentName}`,
+          tag: m.key,
+        });
+      }
+    }
+    lastMatchStatusRef.current = curr;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tournamentsList, isLoggedIn, playersDbList]);
 
   const selectedPlayerForStats = React.useMemo(
     () => (playersDbList || []).find((p) => p?.id === selectedPlayerStatsId) || null,
@@ -355,11 +457,7 @@ export default function App() {
     setPlayersDbLoading(true);
     setPlayersDbError('');
     try {
-      let rows = await listPlayers();
-      if (!Array.isArray(rows) || rows.length === 0) {
-        await seedDummyPlayersOnce(20);
-        rows = await listPlayers();
-      }
+      const rows = await listPlayers();
       setPlayersDbList(Array.isArray(rows) ? rows : []);
     } catch (e) {
       console.error(e);
@@ -643,9 +741,11 @@ export default function App() {
       }
       await refreshPlayersList();
       setSaveNotice('Profile updated successfully.');
+      pushToast('Profile updated', 'success');
     } catch (e) {
       console.error(e);
       setProfileError(e?.message || 'Unable to update profile.');
+      pushToast(e?.message || 'Unable to update profile.', 'error');
     } finally {
       setProfileSaving(false);
     }
@@ -661,10 +761,12 @@ export default function App() {
     try {
       await createPlayer(player);
       await refreshPlayersList();
+      pushToast('Player added', 'success');
       return true;
     } catch (e) {
       console.error(e);
       setPlayersDbError(e?.message || 'Unable to save player.');
+      pushToast(e?.message || 'Unable to save player.', 'error');
       return false;
     } finally {
       setPlayersDbSaving(false);
@@ -682,13 +784,18 @@ export default function App() {
       const existing = (playersDbList || []).find((row) => row?.id === id);
       await updatePlayer(id, {
         ...player,
-        avatarUrl: String(existing?.avatarUrl || '').trim(),
+        avatarUrl:
+          player?.avatarUrl != null
+            ? String(player.avatarUrl).trim()
+            : String(existing?.avatarUrl || '').trim(),
       });
       await refreshPlayersList();
+      pushToast('Player updated', 'success');
       return true;
     } catch (e) {
       console.error(e);
       setPlayersDbError(e?.message || 'Unable to update player.');
+      pushToast(e?.message || 'Unable to update player.', 'error');
       return false;
     } finally {
       setPlayersDbUpdatingId(null);
@@ -707,9 +814,11 @@ export default function App() {
     try {
       await deletePlayer(id);
       await refreshPlayersList();
+      pushToast('Player deleted', 'success');
     } catch (e) {
       console.error(e);
       setPlayersDbError(e?.message || 'Unable to delete player.');
+      pushToast(e?.message || 'Unable to delete player.', 'error');
     } finally {
       setPlayersDbDeletingId(null);
     }
@@ -1125,7 +1234,10 @@ export default function App() {
       setTournamentsError('Unable to save match: missing tournament id.');
       return;
     }
-    setSavingMatch(true);
+    // Silent saves (live auto-save) persist without navigating away or toggling
+    // the saving spinner, so scoring isn't interrupted on every point.
+    const silent = meta?.silent === true;
+    if (!silent) setSavingMatch(true);
     setTournamentsError('');
     try {
       const existingMatch = findMatchByRef(selectedTournament, targetRef);
@@ -1217,13 +1329,15 @@ export default function App() {
       setTournamentsList((prev) =>
         prev.map((row) => (row.id === next.id ? { ...row, status: next.status } : row))
       );
-      setTournamentView('matches');
-      await refreshTournamentsList();
+      if (!silent) {
+        setTournamentView('matches');
+        await refreshTournamentsList();
+      }
     } catch (e) {
       console.error(e);
-      setTournamentsError(e?.message || 'Unable to save match tracking.');
+      if (!silent) setTournamentsError(e?.message || 'Unable to save match tracking.');
     } finally {
-      setSavingMatch(false);
+      if (!silent) setSavingMatch(false);
     }
   }
 
@@ -2563,8 +2677,21 @@ export default function App() {
     String(profilePlayer?.name || '').trim() ||
     String(getLoggedInPlayerFromList()?.name || '').trim();
 
+  function handleBottomNav(key) {
+    setMenuOpen(false);
+    if (key === 'tournaments') {
+      setSelectedTournament(null);
+      setSelectedMatchRef(null);
+      setTournamentView('list');
+      setActiveMenu('tournaments');
+    } else {
+      setActiveMenu(key);
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-cyan-50 to-indigo-100 text-slate-900">
+    <div className="min-h-screen overflow-x-clip bg-gradient-to-b from-slate-50 to-navy-50 dark:from-navy-900 dark:to-navy-900 text-slate-900 dark:text-slate-100">
+      <Toast toasts={toasts} onDismiss={dismissToast} />
       <AppHeader
         menuRef={menuRef}
         menuOpen={menuOpen}
@@ -2801,9 +2928,9 @@ export default function App() {
                 value={t.tournamentName}
                 onChange={(e) => t.setTournamentName(e.target.value)}
                 placeholder="Enter tournament name"
-                className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900"
+                className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
               />
-              <p className="text-xs text-slate-500 mt-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                 This name is used when you save the fixture as a tournament.
               </p>
             </Card>
@@ -2848,9 +2975,9 @@ export default function App() {
                 type="date"
                 value={t.eventDate}
                 onChange={(e) => t.setEventDate(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900 placeholder-slate-500"
+                className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100 placeholder-slate-500"
               />
-              <p className="text-xs text-slate-500 mt-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                 Used as default for match times.
               </p>
             </Card>
@@ -2866,9 +2993,9 @@ export default function App() {
                     onBlur={() => {
                       if (t.numPools === '') t.setNumPools(1);
                     }}
-                    className="w-32 px-3 py-2 border rounded-lg bg-white text-slate-900"
+                    className="w-32 px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                   />
-                  <p className="text-xs text-slate-500 mt-2">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                     Semifinals: 2 groups → top 2 each. 1 group → top 4 overall.
                   </p>
                 </Card>
@@ -2882,9 +3009,9 @@ export default function App() {
                     onBlur={() => {
                       if (membersPerGroup === '') setMembersPerGroup(2);
                     }}
-                    className="w-32 px-3 py-2 border rounded-lg bg-white text-slate-900"
+                    className="w-32 px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                   />
-                  <p className="text-xs text-slate-500 mt-2">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                     Target: {membersPerGroup * (Number(t.numPools) || 1)} players for balanced groups.
                   </p>
                 </Card>
@@ -2895,7 +3022,7 @@ export default function App() {
                       (_, idx) => (
                         <input
                           key={idx}
-                          className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900"
+                          className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                           placeholder={`Group ${idx + 1} name`}
                           value={groupNames[idx] || ''}
                           onChange={(e) =>
@@ -2935,7 +3062,7 @@ export default function App() {
                             setGroupGamesBetweenGroups(1);
                           }
                         }}
-                        className="w-32 px-3 py-2 border rounded-lg bg-white text-slate-900"
+                        className="w-32 px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                       />
                     </div>
                     <div className="space-y-2">
@@ -2948,7 +3075,7 @@ export default function App() {
                             <select
                               value={row.levelA1}
                               onChange={(e) => updateGroupPairing(idx, 'levelA1', e.target.value)}
-                              className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900"
+                              className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                             >
                               {Array.from({ length: Math.max(2, Number(membersPerGroup) || 2) }).map(
                                 (_, lIdx) => (
@@ -2961,7 +3088,7 @@ export default function App() {
                             <select
                               value={row.levelA2}
                               onChange={(e) => updateGroupPairing(idx, 'levelA2', e.target.value)}
-                              className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900"
+                              className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                             >
                               {Array.from({ length: Math.max(2, Number(membersPerGroup) || 2) }).map(
                                 (_, lIdx) => (
@@ -2972,12 +3099,12 @@ export default function App() {
                               )}
                             </select>
                           </div>
-                          <span className="text-sm text-slate-500">VS</span>
+                          <span className="text-sm text-slate-500 dark:text-slate-400">VS</span>
                           <div className="grid grid-cols-2 gap-2">
                             <select
                               value={row.levelB1}
                               onChange={(e) => updateGroupPairing(idx, 'levelB1', e.target.value)}
-                              className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900"
+                              className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                             >
                               {Array.from({ length: Math.max(2, Number(membersPerGroup) || 2) }).map(
                                 (_, lIdx) => (
@@ -2990,7 +3117,7 @@ export default function App() {
                             <select
                               value={row.levelB2}
                               onChange={(e) => updateGroupPairing(idx, 'levelB2', e.target.value)}
-                              className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900"
+                              className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                             >
                               {Array.from({ length: Math.max(2, Number(membersPerGroup) || 2) }).map(
                                 (_, lIdx) => (
@@ -3004,7 +3131,7 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Players in each group are ranked by skill as L1, L2, L3... Choose non-repeating
                       Lx vs Ly combinations.
                     </p>
@@ -3023,7 +3150,7 @@ export default function App() {
                         onBlur={() => {
                           if (winnerTeamPoint === '') setWinnerTeamPoint(0);
                         }}
-                        className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900"
+                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                       />
                     </div>
                     <div />
@@ -3041,7 +3168,7 @@ export default function App() {
                         onBlur={() => {
                           if (winnerBonusOppScoreLessThan === '') setWinnerBonusOppScoreLessThan(0);
                         }}
-                        className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900"
+                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                       />
                     </div>
                     <div>
@@ -3054,7 +3181,7 @@ export default function App() {
                         onBlur={() => {
                           if (winnerBonusPoint === '') setWinnerBonusPoint(0);
                         }}
-                        className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900"
+                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                       />
                     </div>
                     <div>
@@ -3071,7 +3198,7 @@ export default function App() {
                         onBlur={() => {
                           if (loserBonusScoreGreaterThan === '') setLoserBonusScoreGreaterThan(0);
                         }}
-                        className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900"
+                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                       />
                     </div>
                     <div>
@@ -3084,7 +3211,7 @@ export default function App() {
                         onBlur={() => {
                           if (loserBonusPoint === '') setLoserBonusPoint(0);
                         }}
-                        className="w-full px-3 py-2 border rounded-lg bg-white text-slate-900"
+                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                       />
                     </div>
                   </div>
@@ -3100,9 +3227,9 @@ export default function App() {
                   onBlur={() => {
                     if (t.numPools === '') t.setNumPools(1);
                   }}
-                  className="w-32 px-3 py-2 border rounded-lg bg-white text-slate-900"
+                  className="w-32 px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                 />
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                   Configure how many pools you want before fixtures are generated.
                 </p>
               </Card>
@@ -3121,7 +3248,7 @@ export default function App() {
           <section className="mt-6 grid gap-6">
             <Card title="Choose Players">
               <div className="flex flex-wrap items-end gap-3">
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-slate-600 dark:text-slate-300">
                   Select players from your existing player database.
                 </p>
                 <button
@@ -3138,14 +3265,14 @@ export default function App() {
                     {t.players.map((p, i) => (
                       <div
                         key={p.id}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                        className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-slate-800">
+                            <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                               {i + 1}. {p.name}
                             </p>
-                            <p className="text-xs text-slate-500">Skill: {p.skill}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">Skill: {p.skill}</p>
                           </div>
                           <button
                             className="rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
@@ -3161,7 +3288,7 @@ export default function App() {
                   <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-left text-slate-500">
+                        <tr className="text-left text-slate-500 dark:text-slate-400">
                           <th className="py-2">#</th>
                           <th>Name</th>
                           <th>Skill</th>
@@ -3191,7 +3318,7 @@ export default function App() {
               )}
 
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mt-4">
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
                   Players: {t.players.length}
                 </div>
                 <div className="flex gap-2">
@@ -3228,13 +3355,13 @@ export default function App() {
                 </button>
                 <div className="grow" />
                 <button
-                  className="w-full sm:w-auto px-3 py-2 rounded-lg border hover:bg-slate-100"
+                  className="w-full sm:w-auto btn-ghost"
                   onClick={handleAutoPairFromBuilder}
                 >
                   Auto-pair (balanced)
                 </button>
                 <button
-                  className="w-full sm:w-auto px-3 py-2 rounded-lg border hover:bg-slate-100"
+                  className="w-full sm:w-auto btn-ghost"
                   onClick={handleShuffleTeamsFromBuilder}
                   disabled={t.teams.length < 2}
                 >
@@ -3246,16 +3373,16 @@ export default function App() {
                 <div className="mt-4">
                   <div className="sm:hidden space-y-2">
                     {t.teams.map((tm, i) => (
-                      <div key={tm.id} className="rounded-lg border p-3 bg-white">
+                      <div key={tm.id} className="rounded-lg border p-3 bg-white dark:bg-navy-900">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <div className="text-xs text-slate-500">#{i + 1}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">#{i + 1}</div>
                             <div className="font-semibold">{tm.name}</div>
-                            <div className="text-sm text-slate-500">Avg Skill: {tm.avgSkill}</div>
+                            <div className="text-sm text-slate-500 dark:text-slate-400">Avg Skill: {tm.avgSkill}</div>
                           </div>
                           <div className="flex flex-col items-end gap-1">
                             <button
-                              className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
+                              className="rounded-lg p-2 text-navy-600 hover:bg-navy-50"
                               onClick={() => t.startEditTeam(tm.id)}
                               aria-label={`Edit ${tm.name}`}
                               title="Edit"
@@ -3279,7 +3406,7 @@ export default function App() {
                   <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full min-w-[520px] text-sm">
                       <thead>
-                        <tr className="text-left text-slate-500">
+                        <tr className="text-left text-slate-500 dark:text-slate-400">
                           <th className="py-2">#</th>
                           <th>Team</th>
                           <th>Avg Skill</th>
@@ -3294,7 +3421,7 @@ export default function App() {
                             <td>{tm.avgSkill}</td>
                             <td className="text-right">
                               <button
-                                className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
+                                className="rounded-lg p-2 text-navy-600 hover:bg-navy-50"
                                 onClick={() => t.startEditTeam(tm.id)}
                                 aria-label={`Edit ${tm.name}`}
                                 title="Edit"
@@ -3332,20 +3459,20 @@ export default function App() {
           <section className="mt-6 grid gap-6">
             <Card title="Teams — Edit">
               {t.teams.length === 0 ? (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   No teams yet. Create teams first.
                 </p>
               ) : (
                 <>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
-                    <div className="text-sm text-slate-600">
+                    <div className="text-sm text-slate-600 dark:text-slate-300">
                       Edit teams before generating groups/fixtures.
                     </div>
                     {!t.bulkEditing ? (
                       <div className="flex flex-wrap gap-2">
                         {t.mode === 'group' && (
                           <button
-                            className="px-3 py-2 rounded-lg border hover:bg-slate-100"
+                            className="btn-ghost"
                             onClick={handleAutoCreateGroupMembers}
                           >
                             Auto Create Groups (Balanced)
@@ -3353,7 +3480,7 @@ export default function App() {
                         )}
                         {t.mode !== 'group' && (
                           <button
-                            className="px-3 py-2 rounded-lg border hover:bg-slate-100"
+                            className="btn-ghost"
                             onClick={t.startBulkEdit}
                           >
                             Bulk Edit
@@ -3369,7 +3496,7 @@ export default function App() {
                           Save All
                         </button>
                         <button
-                          className="w-full sm:w-auto px-3 py-2 rounded-lg border hover:bg-slate-100"
+                          className="w-full sm:w-auto btn-ghost"
                           onClick={t.cancelBulkEdit}
                         >
                           Cancel
@@ -3406,7 +3533,7 @@ export default function App() {
                               (p) => !usedPlayerIds.has(p.id)
                             );
                             return (
-                              <div key={pool.id} className="rounded-xl border p-3 bg-white space-y-2">
+                              <div key={pool.id} className="rounded-xl border p-3 bg-white dark:bg-navy-900 space-y-2">
                                 <div className="font-semibold">{poolLabel}</div>
                                 <div className="space-y-2">
                                   {(pool.teamIds || []).map((teamId, memberIdx) => {
@@ -3428,7 +3555,7 @@ export default function App() {
                                           onChange={(e) =>
                                             handleChangeGroupMember(team.id, e.target.value)
                                           }
-                                          className="w-full px-2 py-1.5 border rounded-lg bg-white text-sm"
+                                          className="w-full px-2 py-1.5 border rounded-lg bg-white dark:bg-navy-900 text-sm"
                                         >
                                           {options.map((p) => (
                                             <option key={p.id} value={p.id}>
@@ -3457,7 +3584,7 @@ export default function App() {
                                         [pool.id]: e.target.value,
                                       }))
                                     }
-                                    className="w-full px-2 py-1.5 border rounded-lg bg-white text-sm"
+                                    className="w-full px-2 py-1.5 border rounded-lg bg-white dark:bg-navy-900 text-sm"
                                   >
                                     <option value="">Add player...</option>
                                     {availablePlayers.map((p) => (
@@ -3485,12 +3612,12 @@ export default function App() {
                           {t.teams.map((tm) => (
                             <div
                               key={tm.id}
-                              className="rounded-xl border p-3 bg-white"
+                              className="rounded-xl border p-3 bg-white dark:bg-navy-900"
                             >
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="font-semibold">
                                   {tm.name}{' '}
-                                  <span className="text-xs text-slate-500">
+                                  <span className="text-xs text-slate-500 dark:text-slate-400">
                                     (S{tm.avgSkill})
                                   </span>
                                 </div>
@@ -3524,7 +3651,7 @@ export default function App() {
                                       Save
                                     </button>
                                     <button
-                                      className="w-full sm:w-auto px-3 py-2 rounded-lg border hover:bg-slate-100"
+                                      className="w-full sm:w-auto btn-ghost"
                                       onClick={t.cancelEditTeam}
                                     >
                                       Cancel
@@ -3533,7 +3660,7 @@ export default function App() {
                                 ) : (
                                   <div className="flex flex-wrap items-center gap-2">
                                     <button
-                                      className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
+                                      className="rounded-lg p-2 text-navy-600 hover:bg-navy-50"
                                       onClick={() => t.startEditTeam(tm.id)}
                                       aria-label={`Edit ${tm.name}`}
                                       title="Edit"
@@ -3556,7 +3683,7 @@ export default function App() {
                                   {t.editErr}
                                 </div>
                               )}
-                              <div className="mt-1 text-sm text-slate-500">
+                              <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                                 Members:{' '}
                                 {tm.players
                                   .map(
@@ -3587,7 +3714,7 @@ export default function App() {
                     onBlur={() => {
                       if (t.numPools === '') t.setNumPools(1);
                     }}
-                    className="w-full sm:w-28 px-3 py-2 border rounded-lg bg-white text-slate-900"
+                    className="w-full sm:w-28 px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <button
@@ -3601,7 +3728,7 @@ export default function App() {
               {t.pools.length > 0 && (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                   {t.pools.map((p, idx) => (
-                    <div key={p.id} className="rounded-xl border p-4 bg-white">
+                    <div key={p.id} className="rounded-xl border p-4 bg-white dark:bg-navy-900">
                       <div className="font-semibold mb-2">
                         {groupNames[idx] || `Group ${p.name}`}
                       </div>
@@ -3627,13 +3754,13 @@ export default function App() {
                   onReset={handleResetGroupMatch}
                 />
 
-                <div className="rounded-xl border p-4 bg-white mt-6">
+                <div className="rounded-xl border p-4 bg-white dark:bg-navy-900 mt-6">
                   <div className="font-semibold mb-2">Group Points</div>
                   <div className="sm:hidden space-y-2">
                     {fixtureGroupPointRows.map((row) => (
                       <div key={row.groupId} className="rounded-lg border p-2.5">
                         <div className="font-medium text-sm">{row.groupName}</div>
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                           Pts: {row.points} | Played: {row.played} | Won: {row.won}
                         </div>
                       </div>
@@ -3642,7 +3769,7 @@ export default function App() {
                   <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-left text-slate-500">
+                        <tr className="text-left text-slate-500 dark:text-slate-400">
                           <th className="py-2 pr-2">Group</th>
                           <th className="py-2">Points</th>
                           <th className="py-2">Played</th>
@@ -3665,7 +3792,7 @@ export default function App() {
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-6">
                   {t.mode !== 'group' && (
-                    <div className="text-sm text-slate-500">
+                    <div className="text-sm text-slate-500 dark:text-slate-400">
                       Qualifiers:{' '}
                       {t.pools.length === 1 ? 'top 4 overall' : 'top 2 each group'}{' '}
                       → {t.qualifiers.length}
@@ -3696,13 +3823,13 @@ export default function App() {
                 canResetCompletedMatches={isAdminUser}
               />
 
-              <div className="rounded-xl border p-4 bg-white mt-6">
+              <div className="rounded-xl border p-4 bg-white dark:bg-navy-900 mt-6">
                 <div className="font-semibold mb-2">Group Points</div>
                 <div className="sm:hidden space-y-2">
                   {fixtureGroupPointRows.map((row) => (
                     <div key={row.groupId} className="rounded-lg border p-2.5">
                       <div className="font-medium text-sm">{row.groupName}</div>
-                      <div className="text-xs text-slate-500 mt-1">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                         Pts: {row.points} | Played: {row.played} | Won: {row.won}
                       </div>
                     </div>
@@ -3711,7 +3838,7 @@ export default function App() {
                 <div className="hidden sm:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-slate-500">
+                      <tr className="text-left text-slate-500 dark:text-slate-400">
                         <th className="py-2 pr-2">Group</th>
                         <th className="py-2">Points</th>
                         <th className="py-2">Played</th>
@@ -3734,7 +3861,7 @@ export default function App() {
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-6">
                 {t.mode !== 'group' && (
-                  <div className="text-sm text-slate-500">
+                  <div className="text-sm text-slate-500 dark:text-slate-400">
                     Qualifiers:{' '}
                     {t.pools.length === 1 ? 'top 4 overall' : 'top 2 each group'} →{' '}
                     {t.qualifiers.length}
@@ -3759,11 +3886,11 @@ export default function App() {
               {!(
                 t.groupMatches.length > 0 && t.groupMatches.every((m) => m?.status === 'Completed')
               ) ? (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   Knockout matches will be available after all group matches are completed.
                 </p>
               ) : t.semiMatches.length === 0 ? (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   No semifinals generated yet.
                 </p>
               ) : (
@@ -3812,11 +3939,11 @@ export default function App() {
 
             <Card title="Final">
               {!t.finalMatch ? (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
                   Final will appear after semifinals are completed.
                 </p>
               ) : (
-                <div className="rounded-xl border bg-white p-4">
+                <div className="rounded-xl border bg-white dark:bg-navy-900 p-4">
                   <div className="font-semibold mb-2">{t.finalMatch.label}</div>
                   <div className="grid sm:grid-cols-5 gap-2 items-center">
                     <div className="sm:col-span-2">
@@ -3845,7 +3972,7 @@ export default function App() {
                         )
                       }
                     />
-                    <span className="text-slate-500">-</span>
+                    <span className="text-slate-500 dark:text-slate-400">-</span>
                     <ScoreInput
                       value={t.finalMatch.scoreB}
                       onChange={(v) =>
@@ -3866,7 +3993,7 @@ export default function App() {
                       Finalize
                     </button>
                     <button
-                      className="w-full sm:w-auto px-3 py-2 rounded-lg border hover:bg-slate-100"
+                      className="w-full sm:w-auto btn-ghost"
                       onClick={() =>
                         t.setFinalMatch({
                           ...t.finalMatch,
@@ -3892,15 +4019,15 @@ export default function App() {
             )}
 
             <div className="mt-6 sticky bottom-3 z-10">
-              <div className="ml-auto w-full sm:w-auto rounded-xl border bg-white/95 backdrop-blur px-3 py-3 shadow-lg flex flex-wrap sm:flex-nowrap justify-end gap-2">
+              <div className="ml-auto w-full sm:w-auto rounded-xl border bg-white/95 dark:bg-navy-900/95 backdrop-blur px-3 py-3 shadow-lg flex flex-wrap sm:flex-nowrap justify-end gap-2">
                 <button
-                  className="flex-1 sm:flex-none min-w-0 sm:min-w-28 px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 font-medium text-sm sm:text-base hover:bg-slate-100"
+                  className="flex-1 sm:flex-none min-w-0 sm:min-w-28 px-4 py-2 rounded-lg border border-slate-300 dark:border-navy-700 bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100 font-medium text-sm sm:text-base hover:bg-slate-100"
                   onClick={saveCurrentAsTournament}
                 >
                   Save
                 </button>
                 <button
-                className="flex-1 sm:flex-none min-w-0 sm:min-w-28 px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 font-medium text-sm sm:text-base hover:bg-slate-100 disabled:opacity-50"
+                className="flex-1 sm:flex-none min-w-0 sm:min-w-28 px-4 py-2 rounded-lg border border-slate-300 dark:border-navy-700 bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100 font-medium text-sm sm:text-base hover:bg-slate-100 disabled:opacity-50"
                 onClick={goToPreviousStep}
                 disabled={t.step <= 1}
               >
@@ -3934,32 +4061,11 @@ export default function App() {
         />
       </main>
 
-      <footer className="max-w-6xl mx-auto px-3 sm:px-4 py-8 sm:py-10 text-xs text-slate-500 text-center">
+      <footer className="max-w-6xl mx-auto px-3 sm:px-4 py-8 pb-28 sm:py-10 md:pb-10 text-xs text-slate-500 dark:text-slate-400 text-center">
         Powered by Whitefeather
       </footer>
 
-      <style>{`
-        .btn-primary {
-          padding: 0.55rem 1rem;
-          border-radius: 0.9rem;
-          border: 1px solid #9fdcc9;
-          background: linear-gradient(135deg, #dff7ef 0%, #c7f1e4 55%, #b3ead9 100%);
-          color: #0f3d2f;
-          font-weight: 600;
-          box-shadow: 0 2px 8px rgba(15, 118, 110, 0.12);
-          transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease;
-        }
-        .btn-primary:hover {
-          transform: translateY(-1px);
-          filter: brightness(1.02);
-          box-shadow: 0 4px 12px rgba(15, 118, 110, 0.15);
-        }
-        .btn-primary:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-      `}</style>
+      {isLoggedIn && <BottomNav activeMenu={activeMenu} onNavigate={handleBottomNav} />}
     </div>
   );
 }

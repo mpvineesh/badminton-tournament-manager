@@ -2,9 +2,9 @@ import React from 'react';
 
 function Field({ label, value }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-      <div className="text-[11px] uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-0.5 text-sm font-medium text-slate-900">{value}</div>
+    <div className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+      <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</div>
+      <div className="mt-0.5 text-sm font-medium text-slate-900 dark:text-slate-100">{value}</div>
     </div>
   );
 }
@@ -57,10 +57,10 @@ export default function TournamentSettingsScreen({
 
   if (!tournament) {
     return (
-      <section className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm">
-        <div className="text-sm text-slate-500">Tournament settings not found.</div>
+      <section className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-4 shadow-sm">
+        <div className="text-sm text-slate-500 dark:text-slate-400">Tournament settings not found.</div>
         <button
-          className="mt-3 px-3 py-2 rounded-lg border hover:bg-slate-100"
+          className="mt-3 btn-ghost"
           onClick={onBack}
         >
           Back
@@ -107,14 +107,14 @@ export default function TournamentSettingsScreen({
 
   return (
     <section className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-white to-cyan-50/50 p-4 shadow-sm">
+      <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-gradient-to-r from-white dark:from-navy-900 to-navy-50/50 p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-xs uppercase tracking-wide text-slate-500">Tournament Settings</div>
-            <div className="text-xl font-semibold text-slate-900">{tournament.name || 'Tournament'}</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Tournament Settings</div>
+            <div className="text-xl font-semibold text-slate-900 dark:text-slate-100">{tournament.name || 'Tournament'}</div>
           </div>
           <button
-            className="px-3 py-2 rounded-lg border hover:bg-slate-100"
+            className="btn-ghost"
             onClick={onBack}
           >
             Back to Tournaments
@@ -123,31 +123,31 @@ export default function TournamentSettingsScreen({
       </div>
 
       <form className="space-y-4" onSubmit={handleSave}>
-        <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
-          <div className="mb-3 text-sm font-semibold text-slate-700">Basic</div>
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
+          <div className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Basic</div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Name</div>
+            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Name</div>
               <input
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
+                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.name}
                 onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
               />
             </label>
             <Field label="Status" value={String(tournament?.status || 'Upcoming')} />
-            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Date</div>
+            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Date</div>
               <input
                 type="date"
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
+                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.eventDate}
                 onChange={(e) => setForm((prev) => ({ ...prev, eventDate: e.target.value }))}
               />
             </label>
-            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Format</div>
+            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Format</div>
               <select
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
+                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.mode}
                 onChange={(e) => setForm((prev) => ({ ...prev, mode: e.target.value }))}
               >
@@ -159,35 +159,35 @@ export default function TournamentSettingsScreen({
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
-          <div className="mb-3 text-sm font-semibold text-slate-700">Group Setup</div>
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
+          <div className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Group Setup</div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Pools</div>
+            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Pools</div>
               <input
                 type="number"
                 min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
+                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.numPools}
                 onChange={(e) => setForm((prev) => ({ ...prev, numPools: e.target.value }))}
               />
             </label>
-            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Members/Group</div>
+            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Members/Group</div>
               <input
                 type="number"
                 min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
+                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.membersPerGroup}
                 onChange={(e) => setForm((prev) => ({ ...prev, membersPerGroup: e.target.value }))}
               />
             </label>
-            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Inter-group Games</div>
+            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Inter-group Games</div>
               <input
                 type="number"
                 min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
+                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.groupGamesBetweenGroups}
                 onChange={(e) => setForm((prev) => ({ ...prev, groupGamesBetweenGroups: e.target.value }))}
               />
@@ -195,62 +195,62 @@ export default function TournamentSettingsScreen({
             <Field label="Configured Pairings" value={String(groupPairings.length)} />
           </div>
           {pools.length > 0 && (
-            <div className="mt-3 text-xs text-slate-600">
-              <span className="font-medium text-slate-700">Pool Names:</span>{' '}
+            <div className="mt-3 text-xs text-slate-600 dark:text-slate-300">
+              <span className="font-medium text-slate-700 dark:text-slate-200">Pool Names:</span>{' '}
               {pools.map((p, idx) => String(p?.name || `Group ${idx + 1}`)).join(', ')}
             </div>
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
-          <div className="mb-3 text-sm font-semibold text-slate-700">Points Rules</div>
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
+          <div className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Points Rules</div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Winner Points</div>
+            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Winner Points</div>
               <input
                 type="number"
                 min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
+                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.winnerPoints}
                 onChange={(e) => setForm((prev) => ({ ...prev, winnerPoints: e.target.value }))}
               />
             </label>
-            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Winner Bonus If Opp &lt;</div>
+            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Winner Bonus If Opp &lt;</div>
               <input
                 type="number"
                 min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
+                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.winnerBonusOppScoreLessThan}
                 onChange={(e) => setForm((prev) => ({ ...prev, winnerBonusOppScoreLessThan: e.target.value }))}
               />
             </label>
-            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Winner Bonus Points</div>
+            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Winner Bonus Points</div>
               <input
                 type="number"
                 min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
+                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.winnerBonusPoints}
                 onChange={(e) => setForm((prev) => ({ ...prev, winnerBonusPoints: e.target.value }))}
               />
             </label>
-            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Loser Bonus If Score &gt;</div>
+            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Loser Bonus If Score &gt;</div>
               <input
                 type="number"
                 min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
+                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.loserBonusScoreGreaterThan}
                 onChange={(e) => setForm((prev) => ({ ...prev, loserBonusScoreGreaterThan: e.target.value }))}
               />
             </label>
-            <label className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500">Loser Bonus Points</div>
+            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Loser Bonus Points</div>
               <input
                 type="number"
                 min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 outline-none"
+                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.loserBonusPoints}
                 onChange={(e) => setForm((prev) => ({ ...prev, loserBonusPoints: e.target.value }))}
               />
@@ -258,8 +258,8 @@ export default function TournamentSettingsScreen({
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
-          <div className="mb-3 text-sm font-semibold text-slate-700">Snapshot</div>
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
+          <div className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Snapshot</div>
           <div className="grid gap-2 sm:grid-cols-3">
             <Field label="Players" value={String(players.length)} />
             <Field label="Teams" value={String(teams.length)} />

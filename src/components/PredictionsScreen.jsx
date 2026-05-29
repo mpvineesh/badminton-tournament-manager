@@ -163,9 +163,9 @@ export default function PredictionsScreen({
 
   return (
     <section className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
+      <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
         <div className="font-semibold text-lg">Predictions</div>
-        <div className="text-sm text-slate-500">Predict semifinals, finals, and scores.</div>
+        <div className="text-sm text-slate-500 dark:text-slate-400">Predict semifinals, finals, and scores.</div>
       </div>
 
       {(error || localError || notice) && (
@@ -180,12 +180,12 @@ export default function PredictionsScreen({
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm">
+      <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
         <label className="block text-sm mb-1">Tournament (Upcoming only)</label>
         <select
           value={tournamentId}
           onChange={(e) => setTournamentId(e.target.value)}
-          className="w-full sm:w-96 px-3 py-2 border rounded-lg bg-white text-slate-900"
+          className="w-full sm:w-96 px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
           disabled={loadingTournaments}
         >
           <option value="">Select tournament</option>
@@ -198,11 +198,11 @@ export default function PredictionsScreen({
       </div>
 
       {tournamentId && (
-        <div className="rounded-xl border border-slate-200 bg-white/95 p-3 sm:p-4 shadow-sm space-y-4">
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm space-y-4">
           {loadingPrediction ? (
-            <div className="text-sm text-slate-500">Loading prediction...</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">Loading prediction...</div>
           ) : loadingTournamentDetails ? (
-            <div className="text-sm text-slate-500">Loading selected tournament teams/groups...</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">Loading selected tournament teams/groups...</div>
           ) : (
             <>
               {selectedTournament?.mode === 'group' && (
@@ -210,14 +210,14 @@ export default function PredictionsScreen({
                   <div className="font-semibold mb-2">Groups (Selected Tournament)</div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     <select
-                      className="px-2 py-1.5 border rounded-lg bg-white"
+                      className="px-2 py-1.5 border rounded-lg bg-white dark:bg-navy-900"
                       value={form.semi1GroupAId || ''}
                       onChange={(e) => update('semi1GroupAId', e.target.value)}
                     >
                       {groupOptions}
                     </select>
                     <select
-                      className="px-2 py-1.5 border rounded-lg bg-white"
+                      className="px-2 py-1.5 border rounded-lg bg-white dark:bg-navy-900"
                       value={form.semi1GroupBId || ''}
                       onChange={(e) => update('semi1GroupBId', e.target.value)}
                     >
@@ -231,15 +231,15 @@ export default function PredictionsScreen({
                   <div className="font-semibold mb-2">Semifinal 1</div>
                   <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-center">
                     <select
-                      className="px-2 py-1.5 border rounded-lg bg-white"
+                      className="px-2 py-1.5 border rounded-lg bg-white dark:bg-navy-900"
                       value={form.semi1TeamAId}
                       onChange={(e) => update('semi1TeamAId', e.target.value)}
                     >
                       {teamOptions}
                     </select>
-                    <span className="text-slate-500 text-center">vs</span>
+                    <span className="text-slate-500 dark:text-slate-400 text-center">vs</span>
                     <select
-                      className="px-2 py-1.5 border rounded-lg bg-white"
+                      className="px-2 py-1.5 border rounded-lg bg-white dark:bg-navy-900"
                       value={form.semi1TeamBId}
                       onChange={(e) => update('semi1TeamBId', e.target.value)}
                     >
@@ -254,7 +254,7 @@ export default function PredictionsScreen({
                       onChange={(e) => update('semi1ScoreA', e.target.value)}
                       placeholder="Score A"
                     />
-                    <span className="text-slate-500 text-center">-</span>
+                    <span className="text-slate-500 dark:text-slate-400 text-center">-</span>
                     <input
                       type="number"
                       className="px-2 py-1.5 border rounded-lg"
@@ -269,15 +269,15 @@ export default function PredictionsScreen({
                   <div className="font-semibold mb-2">Semifinal 2</div>
                   <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-center">
                     <select
-                      className="px-2 py-1.5 border rounded-lg bg-white"
+                      className="px-2 py-1.5 border rounded-lg bg-white dark:bg-navy-900"
                       value={form.semi2TeamAId}
                       onChange={(e) => update('semi2TeamAId', e.target.value)}
                     >
                       {teamOptions}
                     </select>
-                    <span className="text-slate-500 text-center">vs</span>
+                    <span className="text-slate-500 dark:text-slate-400 text-center">vs</span>
                     <select
-                      className="px-2 py-1.5 border rounded-lg bg-white"
+                      className="px-2 py-1.5 border rounded-lg bg-white dark:bg-navy-900"
                       value={form.semi2TeamBId}
                       onChange={(e) => update('semi2TeamBId', e.target.value)}
                     >
@@ -292,7 +292,7 @@ export default function PredictionsScreen({
                       onChange={(e) => update('semi2ScoreA', e.target.value)}
                       placeholder="Score A"
                     />
-                    <span className="text-slate-500 text-center">-</span>
+                    <span className="text-slate-500 dark:text-slate-400 text-center">-</span>
                     <input
                       type="number"
                       className="px-2 py-1.5 border rounded-lg"
@@ -308,15 +308,15 @@ export default function PredictionsScreen({
                 <div className="font-semibold mb-2">Final</div>
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-2 items-center">
                   <select
-                    className="px-2 py-1.5 border rounded-lg bg-white"
+                    className="px-2 py-1.5 border rounded-lg bg-white dark:bg-navy-900"
                     value={form.finalTeamAId}
                     onChange={(e) => update('finalTeamAId', e.target.value)}
                   >
                     {teamOptions}
                   </select>
-                  <span className="text-slate-500 text-center">vs</span>
+                  <span className="text-slate-500 dark:text-slate-400 text-center">vs</span>
                   <select
-                    className="px-2 py-1.5 border rounded-lg bg-white"
+                    className="px-2 py-1.5 border rounded-lg bg-white dark:bg-navy-900"
                     value={form.finalTeamBId}
                     onChange={(e) => update('finalTeamBId', e.target.value)}
                   >
@@ -331,7 +331,7 @@ export default function PredictionsScreen({
                     onChange={(e) => update('finalScoreA', e.target.value)}
                     placeholder="Score A"
                   />
-                  <span className="text-slate-500 text-center">-</span>
+                  <span className="text-slate-500 dark:text-slate-400 text-center">-</span>
                   <input
                     type="number"
                     className="px-2 py-1.5 border rounded-lg"

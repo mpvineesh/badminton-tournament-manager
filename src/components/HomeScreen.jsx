@@ -126,31 +126,31 @@ export default function HomeScreen({
   return (
     <section className="space-y-6">
       {welcomeName && (
-        <div className="rounded-xl border border-slate-200 bg-white/90 px-4 py-3 text-sm font-medium text-slate-700">
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/90 dark:bg-navy-900/90 px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200">
           Welcome {welcomeName}
         </div>
       )}
 
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-cyan-100 via-white to-amber-100 p-6 sm:p-10">
-        <div className="pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full bg-fuchsia-300/35 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-cyan-300/35 blur-3xl" />
-        <p className="text-xs uppercase tracking-widest text-slate-600 font-semibold">Dashboard</p>
-        <h2 className="mt-2 text-2xl sm:text-4xl font-bold text-slate-900">Tournament Control Center</h2>
-        <p className="mt-3 max-w-2xl text-sm sm:text-base text-slate-700">
+      <div className="relative overflow-hidden rounded-2xl border border-navy-700 bg-gradient-to-br from-navy-800 to-navy-900 p-6 sm:p-10 text-white">
+        <div className="pointer-events-none absolute -top-10 -right-10 h-40 w-40 rounded-full bg-gold-400/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-navy-400/30 blur-3xl" />
+        <p className="text-xs uppercase tracking-widest text-gold-300 font-semibold">Dashboard</p>
+        <h2 className="mt-2 text-2xl sm:text-4xl font-bold text-white">Tournament Control Center</h2>
+        <p className="mt-3 max-w-2xl text-sm sm:text-base text-navy-100">
           Build teams, generate fixtures, and track outcomes with one streamlined flow.
         </p>
         <div className="mt-5 flex flex-wrap gap-3 relative z-10">
-          <button className="btn-primary w-full sm:w-auto" onClick={onOpenFixture}>
+          <button className="btn-gold w-full sm:w-auto" onClick={onOpenFixture}>
             Create Fixture
           </button>
           <button
-            className="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white/90 hover:bg-white"
+            className="w-full sm:w-auto px-4 py-2 rounded-lg border border-white/25 bg-white/10 dark:bg-navy-900/10 text-white hover:bg-white/20"
             onClick={onManagePlayers}
           >
             Manage Players
           </button>
           <button
-            className="w-full sm:w-auto px-4 py-2 rounded-lg border bg-white/90 hover:bg-white"
+            className="w-full sm:w-auto px-4 py-2 rounded-lg border border-white/25 bg-white/10 dark:bg-navy-900/10 text-white hover:bg-white/20"
             onClick={onBrowseTournaments}
           >
             Browse Tournaments
@@ -159,15 +159,15 @@ export default function HomeScreen({
       </div>
 
       {latestCompletedTournament && latestWinner && (
-        <div className="rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-4">
-          <div className="text-xs uppercase tracking-wide text-emerald-700 font-semibold">
-            Congratulations
+        <div className="rounded-xl border border-gold-200 bg-gradient-to-r from-gold-50 to-gold-100 p-4">
+          <div className="text-xs uppercase tracking-wide text-gold-700 font-semibold">
+            🏆 Champions
           </div>
-          <div className="mt-1 text-base sm:text-lg font-semibold text-emerald-900">
+          <div className="mt-1 text-base sm:text-lg font-semibold text-navy-900">
             {latestWinner.name} won {latestCompletedTournament?.name +' Tournament' || 'Last Tournament'}
           </div>
           {latestWinner.mode === 'group' && latestWinner.members.length > 0 && (
-            <div className="mt-1 text-xs sm:text-sm text-emerald-800/90">
+            <div className="mt-1 text-xs sm:text-sm text-navy-800/90">
               Players: {latestWinner.members.join(', ')}
             </div>
           )}
@@ -175,34 +175,34 @@ export default function HomeScreen({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-xl border bg-gradient-to-br from-indigo-50 to-indigo-100 p-4">
-          <div className="text-sm text-indigo-700">Tournament Progress</div>
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-4 shadow-sm">
+          <div className="text-sm text-slate-500 dark:text-slate-400">Tournament Progress</div>
           <div className={`mt-1 text-2xl font-bold ${progressTone}`}>{tournamentProgress}%</div>
-          <div className="mt-2 h-2 rounded-full bg-indigo-200">
+          <div className="mt-2 h-2 rounded-full bg-slate-100 dark:bg-navy-800">
             <div
-              className="h-2 rounded-full bg-indigo-500"
+              className="h-2 rounded-full bg-navy-600"
               style={{ width: `${tournamentProgress}%` }}
             />
           </div>
-          <div className="mt-1 text-xs text-indigo-700">
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             {tournamentStats.completed}/{tournamentStats.total} matches completed
           </div>
         </div>
-        <div className="rounded-xl border bg-gradient-to-br from-emerald-50 to-emerald-100 p-4">
-          <div className="text-sm text-emerald-700">Players</div>
-          <div className="mt-1 text-2xl font-bold text-emerald-900">{safePlayers}</div>
-          <div className="mt-1 text-xs text-emerald-700">Registered and available</div>
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-4 shadow-sm">
+          <div className="text-sm text-slate-500 dark:text-slate-400">Players</div>
+          <div className="mt-1 text-2xl font-bold text-navy-800">{safePlayers}</div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Registered and available</div>
         </div>
-        <div className="rounded-xl border bg-gradient-to-br from-sky-50 to-sky-100 p-4">
-          <div className="text-sm text-sky-700">Tournaments</div>
-          <div className="mt-1 text-2xl font-bold text-sky-900">{Math.max(0, Number(tournamentCount) || 0)}</div>
-          <div className="mt-1 text-xs text-sky-700">Saved tournaments</div>
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-4 shadow-sm">
+          <div className="text-sm text-slate-500 dark:text-slate-400">Tournaments</div>
+          <div className="mt-1 text-2xl font-bold text-navy-800">{Math.max(0, Number(tournamentCount) || 0)}</div>
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">Saved tournaments</div>
         </div>
       </div>
 
       {/* <div className="grid gap-4">
-        <div className="rounded-xl border bg-white p-4">
-          <div className="text-sm font-semibold text-slate-700">Quick Checklist</div>
+        <div className="rounded-xl border bg-white dark:bg-navy-900 p-4">
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Quick Checklist</div>
           <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
             <div className={`rounded-lg px-3 py-2 ${safePlayers > 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
               {safePlayers > 0 ? 'Done' : 'Pending'}: Add players
@@ -218,11 +218,11 @@ export default function HomeScreen({
       </div> */}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border bg-white p-4">
+        <div className="rounded-xl border bg-white dark:bg-navy-900 p-4">
           <div className="flex items-center justify-between gap-2">
-            <div className="text-sm font-semibold text-slate-700">Currently Running</div>
+            <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Currently Running</div>
             <span className={`text-xs rounded-full border px-2 py-0.5 ${
-              liveTournament ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-slate-50 text-slate-600 border-slate-200'
+              liveTournament ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-slate-50 text-slate-600 dark:text-slate-300 border-slate-200'
             }`}>
               {liveTournament ? 'Live' : 'No Live Tournament'}
             </span>
@@ -232,20 +232,20 @@ export default function HomeScreen({
               className="mt-3 w-full text-left rounded-lg border bg-orange-50/50 p-3 hover:bg-orange-50"
               onClick={() => onOpenTournament?.(liveTournament.id)}
             >
-              <div className="font-semibold text-slate-900">{liveTournament.name}</div>
-              <div className="text-xs text-slate-600 mt-1">Tap to open tournament details</div>
+              <div className="font-semibold text-slate-900 dark:text-slate-100">{liveTournament.name}</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300 mt-1">Tap to open tournament details</div>
             </button>
           ) : (
-            <div className="mt-3 text-sm text-slate-500">
+            <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">
               Start a tournament match to see live status here.
             </div>
           )}
         </div>
 
-        <div className="rounded-xl border bg-white p-4">
-          <div className="text-sm font-semibold text-slate-700">Recent Tournaments</div>
+        <div className="rounded-xl border bg-white dark:bg-navy-900 p-4">
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Recent Tournaments</div>
           {recentTournaments.length === 0 ? (
-            <div className="mt-3 text-sm text-slate-500">No tournaments available yet.</div>
+            <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">No tournaments available yet.</div>
           ) : (
             <div className="mt-3 space-y-2">
               {recentTournaments.map((row) => (
@@ -255,8 +255,8 @@ export default function HomeScreen({
                   onClick={() => onOpenTournament?.(row.id)}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-slate-900 truncate">{row.name}</div>
-                    <span className="text-[11px] rounded-full border px-2 py-0.5">
+                    <div className="min-w-0 flex-1 truncate font-medium text-slate-900 dark:text-slate-100">{row.name}</div>
+                    <span className="shrink-0 text-[11px] rounded-full border px-2 py-0.5">
                       {row.status || 'Upcoming'}
                     </span>
                   </div>

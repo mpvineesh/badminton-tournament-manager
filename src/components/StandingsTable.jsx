@@ -8,9 +8,9 @@ export default function StandingsTable({ rows, teamsById }) {
     <div>
       <div className="sm:hidden space-y-2">
         {rows.map((r, i) => (
-          <div key={r.teamId} className="rounded-lg border border-slate-200 p-2.5 bg-gradient-to-br from-white to-indigo-50/40">
+          <div key={r.teamId} className="rounded-lg border border-slate-200 dark:border-navy-700 p-2.5 bg-gradient-to-br from-white dark:from-navy-900 to-navy-50/40">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-slate-500">Rank #{i + 1}</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">Rank #{i + 1}</div>
               <div className="text-xs font-semibold rounded-full border px-2 py-0.5">
                 {showKnockoutCols ? r.totalPoints || 0 : r.points} pts
               </div>
@@ -19,7 +19,7 @@ export default function StandingsTable({ rows, teamsById }) {
               {teamsById[r.teamId]?.name || r.teamId}
             </div>
             {showKnockoutCols && (
-              <div className="mt-1 text-xs text-slate-500">
+              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Group: {r.points || 0} | SF: {r.semiPoints || 0} | Final: {r.finalPoints || 0}
               </div>
             )}
@@ -27,10 +27,10 @@ export default function StandingsTable({ rows, teamsById }) {
         ))}
       </div>
 
-      <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 shadow-sm">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-slate-500 bg-slate-50/80">
+            <tr className="text-left text-slate-500 dark:text-slate-400 bg-slate-50/80">
               <th className="py-2 pr-2">Rank</th>
               <th className="py-2 pr-2">Team</th>
               {showKnockoutCols ? (
