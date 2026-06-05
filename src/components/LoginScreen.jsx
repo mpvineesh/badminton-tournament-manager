@@ -39,7 +39,7 @@ export default function LoginScreen({ onLogin, loading, error }) {
         </div>
       </div>
 
-      <div className="relative rounded-2xl border border-white/60 bg-white/80 dark:bg-navy-900/80 p-5 sm:p-6 shadow-lg backdrop-blur">
+      <div className="relative overflow-hidden rounded-3xl border border-white/60 bg-white/80 dark:bg-navy-900/80 p-5 sm:p-6 shadow-lg backdrop-blur">
         <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Login</h2>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
           Enter your registered mobile number and OTP.

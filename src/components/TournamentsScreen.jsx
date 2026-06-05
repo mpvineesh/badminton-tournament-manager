@@ -2,6 +2,33 @@ import React from 'react';
 import { computeStandings } from '../utils/tournament.js';
 import MatchScoringScreen from './MatchScoringScreen.jsx';
 
+function fmtDiff(n) {
+  const v = Number(n) || 0;
+  return v > 0 ? `+${v}` : `${v}`;
+}
+function diffColorClass(n) {
+  const v = Number(n) || 0;
+  if (v > 0) return 'text-emerald-600 dark:text-emerald-400';
+  if (v < 0) return 'text-rose-600 dark:text-rose-400';
+  return 'text-slate-400';
+}
+function RankBadge({ rank }) {
+  const styles = {
+    1: 'bg-gold-400 text-navy-900',
+    2: 'bg-slate-300 text-slate-800',
+    3: 'bg-amber-700/80 text-white',
+  };
+  return (
+    <span
+      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+        styles[rank] || 'bg-slate-100 text-slate-500 dark:bg-navy-800 dark:text-slate-300'
+      }`}
+    >
+      {rank}
+    </span>
+  );
+}
+
 export default function TournamentsScreen({
   appError,
   tournamentsError,
@@ -551,8 +578,8 @@ export default function TournamentsScreen({
         <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
-              <div className="font-semibold text-lg">Matches - {selectedTournament.name}</div>
-              <div className="text-sm text-slate-500 dark:text-slate-400">View match status and open details.</div>
+              <div className="font-semibold text-lg">Matches</div>
+              <div className="text-sm text-slate-500 dark:text-slate-400 truncate">{selectedTournament.name}</div>
             </div>
             <button
               className="btn-ghost"
@@ -562,183 +589,136 @@ export default function TournamentsScreen({
             </button>
           </div>
 
-          <div className="space-y-3">
-            <div className="sm:hidden space-y-3">
-              {getOrderedMatches(selectedTournament).map((m, idx) => {
-                const teamsById = Object.fromEntries(
-                  (selectedTournament.teams || []).map((tm) => [tm.id, tm])
-                );
-                const teamA = withWinnerTrophy(m, 'A', getMatchSideName(m, teamsById, 'A'));
-                const teamB = withWinnerTrophy(m, 'B', getMatchSideName(m, teamsById, 'B'));
-                return (
-                  <div
-                    key={`${m.stage}-${m.id}`}
-                    className="rounded-lg border p-3 cursor-pointer"
-                    onClick={() => openMatchFromWidget(m)}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="text-xs text-slate-500 dark:text-slate-400">{m.stage}</div>
-                      <div
-                        className={`text-xs rounded-full border px-2 py-0.5 ${getMatchStatusBadgeClass(
-                          m.status
-                        )}`}
-                      >
-                        {getMatchStatusLabel(m.status)}
-                      </div>
-                    </div>
-                    <div className="mt-1 font-medium text-sm">
-                      {m.label || `Match ${idx + 1}`}
-                    </div>
-                    <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                      {teamA} vs {teamB}
-                    </div>
-                    <div className="mt-1 text-sm">
-                      Score: {m.scoreA ?? '-'} : {m.scoreB ?? '-'}
-                    </div>
-                    <div className="mt-3">
-                      <div className="mb-2 grid grid-cols-2 gap-2">
-                        <input
-                          type="number"
-                          min={0}
-                          value={getQuickScore(m, 'a')}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => setQuickScore(m, 'a', e.target.value)}
-                          className="w-full rounded-lg border px-2 py-1 text-sm"
-                          placeholder="A"
-                        />
-                        <input
-                          type="number"
-                          min={0}
-                          value={getQuickScore(m, 'b')}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => setQuickScore(m, 'b', e.target.value)}
-                          className="w-full rounded-lg border px-2 py-1 text-sm"
-                          placeholder="B"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          className="w-full px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            saveMatchTracking({
-                              ref: { stage: m.stage, id: m.id },
-                              scoreA: getQuickScore(m, 'a'),
-                              scoreB: getQuickScore(m, 'b'),
-                            });
-                          }}
-                          disabled={savingMatch}
-                        >
-                          {savingMatch ? 'Saving...' : 'Save Score'}
-                        </button>
-                        <button
-                          className="w-full px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openMatchFromWidget(m);
-                          }}
-                        >
-                          {isScorableMatch(m.status) ? 'Live Scoring' : 'View'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="hidden sm:block overflow-x-auto rounded-lg border">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-navy-800 text-left text-slate-500 dark:text-slate-400">
-                  <tr>
-                    <th className="p-2">Stage</th>
-                    <th className="p-2">Match</th>
-                    <th className="p-2">Score</th>
-                    <th className="p-2">Status</th>
-                    <th className="p-2 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {getOrderedMatches(selectedTournament).map((m, idx) => {
-                    const teamsById = Object.fromEntries(
-                      (selectedTournament.teams || []).map((tm) => [tm.id, tm])
-                    );
+          {(() => {
+            const all = getOrderedMatches(selectedTournament);
+            if (all.length === 0) {
+              return (
+                <div className="rounded-xl border border-dashed border-slate-300 dark:border-navy-700 py-12 text-center">
+                  <div className="text-sm font-medium text-slate-600 dark:text-slate-300">No matches yet</div>
+                  <p className="mt-1 text-xs text-slate-400">Generate fixtures to see matches here.</p>
+                </div>
+              );
+            }
+            const teamsById = Object.fromEntries(
+              (selectedTournament.teams || []).map((tm) => [tm.id, tm])
+            );
+            const stageMeta = {
+              Group: { label: 'Group Stage', dot: 'bg-navy-500' },
+              Semifinal: { label: 'Semifinals', dot: 'bg-amber-500' },
+              Final: { label: 'Final', dot: 'bg-gold-500' },
+            };
+            const order = ['Group', 'Semifinal', 'Final'];
+            const grouped = all.reduce((acc, m) => {
+              (acc[m.stage] = acc[m.stage] || []).push(m);
+              return acc;
+            }, {});
+            const stages = [
+              ...order.filter((s) => grouped[s]),
+              ...Object.keys(grouped).filter((s) => !order.includes(s)),
+            ];
+            let counter = 0;
+            return stages.map((stage) => (
+              <section key={stage} className="mt-5 first:mt-2">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  <span className={`h-2 w-2 rounded-full ${(stageMeta[stage] || {}).dot || 'bg-slate-400'}`} />
+                  {(stageMeta[stage] || {}).label || stage}
+                  <span className="font-normal text-slate-400">· {grouped[stage].length}</span>
+                </div>
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  {grouped[stage].map((m) => {
+                    counter += 1;
                     const teamA = withWinnerTrophy(m, 'A', getMatchSideName(m, teamsById, 'A'));
                     const teamB = withWinnerTrophy(m, 'B', getMatchSideName(m, teamsById, 'B'));
+                    const winnerA = m.winnerTeamId && m.winnerTeamId === m.teamAId;
+                    const winnerB = m.winnerTeamId && m.winnerTeamId === m.teamBId;
+                    const live = m.status === 'Live';
+                    const accent = live
+                      ? 'border-l-4 border-l-orange-400'
+                      : m.status === 'Completed'
+                        ? 'border-l-4 border-l-emerald-400'
+                        : 'border-l-4 border-l-slate-200 dark:border-l-navy-700';
+                    const scorable = isScorableMatch(m.status);
                     return (
-                      <tr
+                      <div
                         key={`${m.stage}-${m.id}`}
-                        className="border-t cursor-pointer hover:bg-slate-50"
-                        onClick={() => openMatchFromWidget(m)}
+                        className={`min-w-0 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-3 shadow-sm ${accent}`}
                       >
-                        <td className="p-2">{m.stage}</td>
-                        <td className="p-2">
-                          {m.label || `Match ${idx + 1}`} ({teamA} vs {teamB})
-                        </td>
-                        <td className="p-2">
-                          {m.scoreA ?? '-'} : {m.scoreB ?? '-'}
-                        </td>
-                        <td className="p-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                            {m.label || `Match ${counter}`}
+                          </div>
                           <span
-                            className={`inline-flex px-2 py-0.5 text-xs rounded-full border ${getMatchStatusBadgeClass(
-                              m.status
-                            )}`}
+                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${getMatchStatusBadgeClass(m.status)}`}
                           >
+                            {live && <span className="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" />}
                             {getMatchStatusLabel(m.status)}
                           </span>
-                        </td>
-                        <td className="p-2 text-right">
-                          <div className="inline-flex items-center gap-2">
-                            <input
-                              type="number"
-                              min={0}
-                              value={getQuickScore(m, 'a')}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => setQuickScore(m, 'a', e.target.value)}
-                              className="w-14 rounded border px-1.5 py-1 text-xs"
-                              placeholder="A"
-                            />
-                            <input
-                              type="number"
-                              min={0}
-                              value={getQuickScore(m, 'b')}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => setQuickScore(m, 'b', e.target.value)}
-                              className="w-14 rounded border px-1.5 py-1 text-xs"
-                              placeholder="B"
-                            />
-                            <button
-                              className="px-2 py-1 rounded-lg border hover:bg-slate-100 text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                saveMatchTracking({
-                                  ref: { stage: m.stage, id: m.id },
-                                  scoreA: getQuickScore(m, 'a'),
-                                  scoreB: getQuickScore(m, 'b'),
-                                });
-                              }}
-                              disabled={savingMatch}
-                            >
-                              {savingMatch ? 'Saving...' : 'Save'}
-                            </button>
-                            <button
-                              className="px-2 py-1 rounded-lg border hover:bg-slate-100 text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openMatchFromWidget(m);
-                              }}
-                            >
-                              {isScorableMatch(m.status) ? 'Live' : 'View'}
-                            </button>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <div
+                            className={`min-w-0 flex-1 truncate text-right text-sm font-semibold ${winnerA ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200'}`}
+                          >
+                            {teamA}
                           </div>
-                        </td>
-                      </tr>
+                          <div className="shrink-0 rounded-lg bg-slate-100 dark:bg-navy-800 px-2.5 py-1 text-sm font-bold tabular-nums text-navy-800 dark:text-slate-100">
+                            {m.scoreA ?? '–'}
+                            <span className="px-1 text-slate-400">:</span>
+                            {m.scoreB ?? '–'}
+                          </div>
+                          <div
+                            className={`min-w-0 flex-1 truncate text-sm font-semibold ${winnerB ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200'}`}
+                          >
+                            {teamB}
+                          </div>
+                        </div>
+                        <div className="mt-3 flex items-center gap-1.5">
+                          {scorable && (
+                            <>
+                              <input
+                                type="number"
+                                min={0}
+                                value={getQuickScore(m, 'a')}
+                                onChange={(e) => setQuickScore(m, 'a', e.target.value)}
+                                className="w-11 min-w-0 shrink-0 rounded-lg border px-1.5 py-1 text-center text-sm"
+                                placeholder="A"
+                              />
+                              <input
+                                type="number"
+                                min={0}
+                                value={getQuickScore(m, 'b')}
+                                onChange={(e) => setQuickScore(m, 'b', e.target.value)}
+                                className="w-11 min-w-0 shrink-0 rounded-lg border px-1.5 py-1 text-center text-sm"
+                                placeholder="B"
+                              />
+                              <button
+                                className="rounded-lg border border-slate-300 dark:border-navy-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-navy-800 disabled:opacity-60"
+                                onClick={() =>
+                                  saveMatchTracking({
+                                    ref: { stage: m.stage, id: m.id },
+                                    scoreA: getQuickScore(m, 'a'),
+                                    scoreB: getQuickScore(m, 'b'),
+                                  })
+                                }
+                                disabled={savingMatch}
+                              >
+                                {savingMatch ? '…' : 'Save'}
+                              </button>
+                            </>
+                          )}
+                          <button
+                            className={`min-w-0 flex-1 truncate rounded-lg px-3 py-1.5 text-sm font-semibold text-white ${scorable ? 'bg-navy-700 hover:bg-navy-600' : 'bg-slate-500 hover:bg-slate-600'}`}
+                            onClick={() => openMatchFromWidget(m)}
+                          >
+                            {scorable ? 'Live scoring' : 'View'}
+                          </button>
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                </div>
+              </section>
+            ));
+          })()}
         </div>
       )}
 
@@ -878,6 +858,7 @@ export default function TournamentsScreen({
 
             return (
               <MatchScoringScreen
+                key={selectedMatchRef?.id || 'match'}
                 title={`${match.label || `${selectedMatchRef.stage} Match`} | ${selectedTournament.name}`}
                 statusLabel={getMatchStatusLabel(matchStatus || match.status)}
                 teamAName={teamAName}
@@ -1058,34 +1039,44 @@ export default function TournamentsScreen({
                         return (
                           <>
                             <div className="sm:hidden space-y-2">
-                              {groupRows.map((row) => (
-                                <div key={row.id} className="rounded-lg border p-2.5">
-                                  <div className="font-medium text-sm">{row.groupName}</div>
-                                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                    Pts: {row.points} | Won: {row.won} | Lost: {row.lost} | Diff: {row.pointDiff}
+                              {groupRows.map((row, i) => (
+                                <div
+                                  key={row.id}
+                                  className={`flex items-center gap-3 rounded-xl border p-2.5 ${i === 0 ? 'border-gold-300 bg-gold-50 dark:border-navy-700 dark:bg-navy-800' : 'border-slate-200 dark:border-navy-700'}`}
+                                >
+                                  <RankBadge rank={i + 1} />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{row.groupName}</div>
+                                    <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.won}W · {row.lost}L</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-lg font-bold tabular-nums text-navy-800 dark:text-slate-100">{row.points}</div>
+                                    <div className={`text-[11px] font-medium ${diffColorClass(row.pointDiff)}`}>{fmtDiff(row.pointDiff)}</div>
                                   </div>
                                 </div>
                               ))}
                             </div>
-                            <div className="hidden sm:block overflow-x-auto">
+                            <div className="hidden sm:block overflow-x-auto rounded-lg border border-slate-200 dark:border-navy-700">
                               <table className="w-full text-sm">
-                                <thead>
-                                  <tr className="text-left text-slate-500 dark:text-slate-400">
+                                <thead className="bg-navy-800 text-left text-xs uppercase tracking-wide text-navy-50">
+                                  <tr>
+                                    <th className="py-2 pl-3 pr-2">#</th>
                                     <th className="py-2 pr-2">Group</th>
-                                    <th className="py-2">Total Points</th>
-                                    <th className="py-2">Won</th>
-                                    <th className="py-2">Lost</th>
-                                    <th className="py-2">Point Diff</th>
+                                    <th className="py-2 pr-2 text-center">Pts</th>
+                                    <th className="py-2 pr-2 text-center">W</th>
+                                    <th className="py-2 pr-2 text-center">L</th>
+                                    <th className="py-2 pr-3 text-center">Diff</th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {groupRows.map((row) => (
-                                    <tr key={row.id} className="border-t">
-                                      <td className="py-2 pr-2">{row.groupName}</td>
-                                      <td className="py-2">{row.points}</td>
-                                      <td className="py-2">{row.won}</td>
-                                      <td className="py-2">{row.lost}</td>
-                                      <td className="py-2">{row.pointDiff}</td>
+                                  {groupRows.map((row, i) => (
+                                    <tr key={row.id} className={`border-t border-slate-100 dark:border-navy-800 ${i === 0 ? 'bg-gold-50/70 dark:bg-navy-800/60' : ''}`}>
+                                      <td className="py-2 pl-3 pr-2"><RankBadge rank={i + 1} /></td>
+                                      <td className="py-2 pr-2 font-medium text-slate-800 dark:text-slate-100">{row.groupName}</td>
+                                      <td className="py-2 pr-2 text-center font-bold tabular-nums text-navy-800 dark:text-slate-100">{row.points}</td>
+                                      <td className="py-2 pr-2 text-center tabular-nums">{row.won}</td>
+                                      <td className="py-2 pr-2 text-center tabular-nums">{row.lost}</td>
+                                      <td className={`py-2 pr-3 text-center font-medium tabular-nums ${diffColorClass(row.pointDiff)}`}>{fmtDiff(row.pointDiff)}</td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -1096,65 +1087,92 @@ export default function TournamentsScreen({
                       })()
                     ) : (
                       (() => {
-                      const rows = pools
-                        .flatMap((p, idx) =>
-                          (standings[p.id] || []).map((r) => ({
+                      const poolTables = pools.map((p, idx) => ({
+                        id: p.id,
+                        name: p.name || `Group ${idx + 1}`,
+                        rows: (standings[p.id] || [])
+                          .map((r) => ({
                             id: `${p.id}-${r.teamId}`,
-                            groupName: p.name || `Group ${idx + 1}`,
-                            teamId: r.teamId,
                             teamName: teamsById[r.teamId]?.name || r.teamId,
                             points: Number(r?.points || 0),
                             played: Number(r?.played || 0),
                             won: Number(r?.won || 0),
                             pointDiff: Number(r?.pf || 0) - Number(r?.pa || 0),
                           }))
-                        )
-                        .sort((a, b) => {
-                          if (b.points !== a.points) return b.points - a.points;
-                          if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
-                          if (b.won !== a.won) return b.won - a.won;
-                          return a.teamName.localeCompare(b.teamName);
-                        });
+                          .sort((a, b) => {
+                            if (b.points !== a.points) return b.points - a.points;
+                            if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
+                            if (b.won !== a.won) return b.won - a.won;
+                            return a.teamName.localeCompare(b.teamName);
+                          }),
+                      }));
                       return (
-                        <>
-                          <div className="sm:hidden space-y-2">
-                            {rows.map((row) => (
-                              <div key={row.id} className="rounded-lg border p-2.5">
-                                <div className="font-medium text-sm">{row.teamName}</div>
-                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{row.groupName}</div>
-                                <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                  Pts: {row.points} | Diff: {row.pointDiff} | Played: {row.played} | Won: {row.won}
-                                </div>
+                        <div className="space-y-4">
+                          {poolTables.map((pool) => (
+                            <div key={pool.id}>
+                              <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                <span className="h-2 w-2 rounded-full bg-navy-500" />
+                                {pool.name}
+                                <span className="font-normal text-slate-400">· {pool.rows.length} teams</span>
                               </div>
-                            ))}
-                          </div>
-                          <div className="hidden sm:block overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="text-left text-slate-500 dark:text-slate-400">
-                                  <th className="py-2 pr-2">Group</th>
-                                  <th className="py-2 pr-2">Team</th>
-                                  <th className="py-2">Points</th>
-                                  <th className="py-2">Point Difference</th>
-                                  <th className="py-2">Played</th>
-                                  <th className="py-2">Won</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {rows.map((row) => (
-                                  <tr key={row.id} className="border-t">
-                                    <td className="py-2 pr-2">{row.groupName}</td>
-                                    <td className="py-2 pr-2">{row.teamName}</td>
-                                    <td className="py-2">{row.points}</td>
-                                    <td className="py-2">{row.pointDiff}</td>
-                                    <td className="py-2">{row.played}</td>
-                                    <td className="py-2">{row.won}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </>
+                              {pool.rows.length === 0 ? (
+                                <div className="rounded-lg border border-dashed border-slate-300 dark:border-navy-700 py-4 text-center text-xs text-slate-400">
+                                  No teams in this group yet.
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="sm:hidden space-y-2">
+                                    {pool.rows.map((row, i) => (
+                                      <div
+                                        key={row.id}
+                                        className={`flex items-center gap-3 rounded-xl border p-2.5 ${i === 0 ? 'border-gold-300 bg-gold-50 dark:border-navy-700 dark:bg-navy-800' : 'border-slate-200 dark:border-navy-700'}`}
+                                      >
+                                        <RankBadge rank={i + 1} />
+                                        <div className="min-w-0 flex-1">
+                                          <div className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{row.teamName}</div>
+                                          <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.won}W · {row.played} played</div>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="text-lg font-bold tabular-nums text-navy-800 dark:text-slate-100">{row.points}</div>
+                                          <div className={`text-[11px] font-medium ${diffColorClass(row.pointDiff)}`}>{fmtDiff(row.pointDiff)}</div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="hidden sm:block overflow-x-auto rounded-lg border border-slate-200 dark:border-navy-700">
+                                    <table className="w-full text-sm">
+                                      <thead className="bg-navy-800 text-left text-xs uppercase tracking-wide text-navy-50">
+                                        <tr>
+                                          <th className="py-2 pl-3 pr-2">#</th>
+                                          <th className="py-2 pr-2">Team</th>
+                                          <th className="py-2 pr-2 text-center">Pts</th>
+                                          <th className="py-2 pr-2 text-center">Diff</th>
+                                          <th className="py-2 pr-2 text-center">P</th>
+                                          <th className="py-2 pr-3 text-center">W</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {pool.rows.map((row, i) => (
+                                          <tr
+                                            key={row.id}
+                                            className={`border-t border-slate-100 dark:border-navy-800 ${i === 0 ? 'bg-gold-50/70 dark:bg-navy-800/60' : ''}`}
+                                          >
+                                            <td className="py-2 pl-3 pr-2"><RankBadge rank={i + 1} /></td>
+                                            <td className="py-2 pr-2 font-medium text-slate-800 dark:text-slate-100">{row.teamName}</td>
+                                            <td className="py-2 pr-2 text-center font-bold tabular-nums text-navy-800 dark:text-slate-100">{row.points}</td>
+                                            <td className={`py-2 pr-2 text-center font-medium tabular-nums ${diffColorClass(row.pointDiff)}`}>{fmtDiff(row.pointDiff)}</td>
+                                            <td className="py-2 pr-2 text-center tabular-nums">{row.played}</td>
+                                            <td className="py-2 pr-3 text-center tabular-nums">{row.won}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       );
                       })()
                     )
@@ -1178,32 +1196,39 @@ export default function TournamentsScreen({
                     ) : (
                       <>
                         <div className="sm:hidden space-y-2">
-                          {knockoutRows.map((row) => (
-                            <div key={row.teamId} className="rounded-lg border p-2.5">
-                              <div className="font-medium text-sm">{row.teamName}</div>
-                              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                                SF: {row.semiPoints} | Final: {row.finalPoints} | Total: {row.totalKnockout}
+                          {knockoutRows.map((row, i) => (
+                            <div
+                              key={row.teamId}
+                              className={`flex items-center gap-3 rounded-xl border p-2.5 ${i === 0 ? 'border-gold-300 bg-gold-50 dark:border-navy-700 dark:bg-navy-800' : 'border-slate-200 dark:border-navy-700'}`}
+                            >
+                              <RankBadge rank={i + 1} />
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{row.teamName}</div>
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400">SF {row.semiPoints} · Final {row.finalPoints}</div>
                               </div>
+                              <div className="text-lg font-bold tabular-nums text-navy-800 dark:text-slate-100">{row.totalKnockout}</div>
                             </div>
                           ))}
                         </div>
-                        <div className="hidden sm:block overflow-x-auto">
+                        <div className="hidden sm:block overflow-x-auto rounded-lg border border-slate-200 dark:border-navy-700">
                           <table className="w-full text-sm">
-                            <thead>
-                              <tr className="text-left text-slate-500 dark:text-slate-400">
+                            <thead className="bg-navy-800 text-left text-xs uppercase tracking-wide text-navy-50">
+                              <tr>
+                                <th className="py-2 pl-3 pr-2">#</th>
                                 <th className="py-2 pr-2">Team</th>
-                                <th className="py-2">Semifinal</th>
-                                <th className="py-2">Final</th>
-                                <th className="py-2">Total</th>
+                                <th className="py-2 pr-2 text-center">Semifinal</th>
+                                <th className="py-2 pr-2 text-center">Final</th>
+                                <th className="py-2 pr-3 text-center">Total</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {knockoutRows.map((row) => (
-                                <tr key={row.teamId} className="border-t">
-                                  <td className="py-2 pr-2">{row.teamName}</td>
-                                  <td className="py-2">{row.semiPoints}</td>
-                                  <td className="py-2">{row.finalPoints}</td>
-                                  <td className="py-2 font-semibold">{row.totalKnockout}</td>
+                              {knockoutRows.map((row, i) => (
+                                <tr key={row.teamId} className={`border-t border-slate-100 dark:border-navy-800 ${i === 0 ? 'bg-gold-50/70 dark:bg-navy-800/60' : ''}`}>
+                                  <td className="py-2 pl-3 pr-2"><RankBadge rank={i + 1} /></td>
+                                  <td className="py-2 pr-2 font-medium text-slate-800 dark:text-slate-100">{row.teamName}</td>
+                                  <td className="py-2 pr-2 text-center tabular-nums">{row.semiPoints}</td>
+                                  <td className="py-2 pr-2 text-center tabular-nums">{row.finalPoints}</td>
+                                  <td className="py-2 pr-3 text-center font-bold tabular-nums text-navy-800 dark:text-slate-100">{row.totalKnockout}</td>
                                 </tr>
                               ))}
                             </tbody>

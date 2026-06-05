@@ -20,7 +20,10 @@ export default function AppHeader({
   const [logoBroken, setLogoBroken] = useState(false);
 
   return (
-    <header className="sticky top-0 z-20 bg-white/85 dark:bg-navy-900/85 backdrop-blur border-b border-slate-200/80">
+    <header
+      className="sticky top-0 z-20 bg-white/85 dark:bg-navy-900/85 backdrop-blur border-b border-slate-200/80"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5">
         <div className="rounded-2xl border border-navy-700 bg-gradient-to-r from-navy-800 to-navy-900 px-3 py-2.5 shadow-md">
           <div className="flex items-center justify-between gap-2">

@@ -9,6 +9,46 @@ const initialForm = {
   role: 'player',
 };
 
+// Colour the skill chip by tier so stronger players read at a glance.
+function skillChipClass(skill) {
+  const s = Number(skill) || 0;
+  if (s >= 9)
+    return 'bg-gradient-to-r from-gold-400 to-gold-500 text-navy-900 ring-1 ring-gold-300';
+  if (s >= 7)
+    return 'bg-gold-100 text-gold-800 ring-1 ring-gold-200 dark:bg-gold-500/15 dark:text-gold-200 dark:ring-gold-500/30';
+  if (s >= 4)
+    return 'bg-navy-100 text-navy-700 ring-1 ring-navy-200 dark:bg-navy-500/20 dark:text-navy-100 dark:ring-navy-500/40';
+  return 'bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-navy-800 dark:text-slate-300 dark:ring-navy-700';
+}
+
+function SkillBadge({ skill }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${skillChipClass(skill)}`}
+    >
+      <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <path d="M10 1.5l2.47 5.01 5.53.8-4 3.9.94 5.49L10 14.1l-4.94 2.6.94-5.49-4-3.9 5.53-.8L10 1.5z" />
+      </svg>
+      {skill}
+    </span>
+  );
+}
+
+function RoleBadge({ role }) {
+  const admin = String(role || '').toLowerCase() === 'admin';
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+        admin
+          ? 'bg-gold-100 text-gold-800 ring-1 ring-gold-200 dark:bg-gold-500/15 dark:text-gold-200 dark:ring-gold-500/30'
+          : 'bg-slate-100 text-slate-500 ring-1 ring-slate-200 dark:bg-navy-800 dark:text-slate-300 dark:ring-navy-700'
+      }`}
+    >
+      {admin ? 'Admin' : 'Player'}
+    </span>
+  );
+}
+
 export default function PlayersScreen({
   players,
   loading,
@@ -154,18 +194,29 @@ export default function PlayersScreen({
     const label = String(player?.name || 'Player').trim();
     const initial = label ? label.charAt(0).toUpperCase() : 'P';
     const busy = photoBusyId === player?.id;
+    const isAdminPlayer = String(player?.role || '').toLowerCase() === 'admin';
+    const ringClass = isAdminPlayer
+      ? 'ring-2 ring-gold-300 dark:ring-gold-500/50'
+      : 'ring-1 ring-slate-200 dark:ring-navy-700';
     const inner = (
-      <div className={`${sizeClass} relative overflow-hidden rounded-full border border-slate-200 dark:border-navy-700 bg-slate-50`}>
+      <div className={`${sizeClass} relative overflow-hidden rounded-full ${ringClass} bg-gradient-to-br from-slate-50 to-slate-100 dark:from-navy-800 dark:to-navy-900 shadow-sm`}>
         {avatarUrl ? (
           <img src={avatarUrl} alt={`${label || 'Player'} avatar`} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500 dark:text-slate-400">
+          <div className="flex h-full w-full items-center justify-center text-sm font-bold text-navy-500 dark:text-slate-300">
             {initial}
           </div>
         )}
         {editable && (
-          <div className="absolute inset-x-0 bottom-0 flex items-center justify-center bg-black/45 py-0.5 text-[9px] font-medium text-white">
-            {busy ? '…' : 'Edit'}
+          <div className="absolute inset-x-0 bottom-0 flex items-center justify-center bg-navy-900/55 py-0.5 text-white backdrop-blur-[1px]">
+            {busy ? (
+              <span className="text-[9px] font-medium">…</span>
+            ) : (
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            )}
           </div>
         )}
       </div>
@@ -196,31 +247,59 @@ export default function PlayersScreen({
         className="hidden"
         onChange={onPhotoChosen}
       />
-      <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-gradient-to-r from-white dark:from-navy-900 to-navy-50/40 p-4 shadow-sm">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="text-lg font-semibold">Players</div>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              View, add, edit, and delete player records.
-            </p>
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-navy-800 via-navy-700 to-navy-900 p-5 shadow-md">
+        <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-gold-400/10 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-12 left-1/4 h-32 w-32 rounded-full bg-navy-400/20 blur-2xl" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
+              <svg className="h-6 w-6 text-gold-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold tracking-tight text-white">Players</h2>
+                {!loading && players.length > 0 && (
+                  <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold text-white ring-1 ring-white/20">
+                    {players.length}
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-slate-300">
+                View, add, edit, and manage your player roster.
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {isAdmin && (
               <button
-                className="w-full sm:w-auto btn-ghost"
+                className="w-full sm:w-auto btn-gold"
                 onClick={() => {
                   setLocalError('');
                   setForm(initialForm);
                   setAddOpen(true);
                 }}
               >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
                 Add Player
               </button>
             )}
             <button
-              className="w-full sm:w-auto btn-ghost"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg border border-white/25 bg-white/10 px-4 py-2 font-medium text-white transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40"
               onClick={onRefresh}
             >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
               Refresh
             </button>
           </div>
@@ -239,12 +318,18 @@ export default function PlayersScreen({
           </div>
           {players.length > 0 && (
             <div className="flex gap-2">
-              <input
-                className="min-w-0 flex-1 sm:w-56 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-400"
-                placeholder="Search name or mobile…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
+              <div className="relative min-w-0 flex-1 sm:w-56">
+                <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  className="w-full rounded-lg border py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-navy-400"
+                  placeholder="Search name or mobile…"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
               <select
                 className="px-2 py-2 border rounded-lg bg-white dark:bg-navy-900 text-sm"
                 value={sortBy}
@@ -268,7 +353,15 @@ export default function PlayersScreen({
             ))}
           </div>
         ) : players.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 dark:border-navy-700 py-10 text-center">
+          <div className="rounded-xl border border-dashed border-slate-300 dark:border-navy-700 py-12 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-navy-50 text-navy-500 dark:bg-navy-800 dark:text-slate-300">
+              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <line x1="19" y1="8" x2="19" y2="14" />
+                <line x1="22" y1="11" x2="16" y2="11" />
+              </svg>
+            </div>
             <div className="text-sm font-medium text-slate-600 dark:text-slate-300">No players yet</div>
             <p className="mt-1 text-xs text-slate-400">
               {isAdmin ? 'Add your first player to get started.' : 'Players will appear here once added.'}
@@ -286,7 +379,7 @@ export default function PlayersScreen({
                 return (
                   <div
                     key={p.id}
-                    className={`rounded-lg border px-3 py-2.5 bg-white dark:bg-navy-900 ${editing ? '' : 'cursor-pointer hover:bg-slate-50'}`}
+                    className={`rounded-xl border border-slate-200 dark:border-navy-700 px-3 py-3 bg-white dark:bg-navy-900 shadow-sm transition ${editing ? '' : 'cursor-pointer hover:border-navy-300 hover:shadow-md active:scale-[0.99]'}`}
                     onClick={() => {
                       if (editing) return;
                       onOpenStats?.(p);
@@ -360,23 +453,32 @@ export default function PlayersScreen({
                       </div>
                     ) : (
                       <>
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          {renderAvatar(p, 'h-14 w-14', isAdmin)}
                           <div className="min-w-0 flex-1">
-                            <div className="font-semibold">{p.name}</div>
-                            <div className="mt-0.5 text-sm text-slate-600 dark:text-slate-300 leading-6">
-                              Age: {p.age ?? '-'} | Skill: {p.skill}
+                            <div className="flex items-center gap-2">
+                              <div className="truncate font-semibold text-slate-800 dark:text-slate-100">{p.name}</div>
+                              <SkillBadge skill={p.skill} />
                             </div>
-                            <div className="text-sm text-slate-600 dark:text-slate-300 leading-6">Mobile: {p.mobile || '-'}</div>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-slate-500 dark:text-slate-400">
+                              <span className="inline-flex items-center gap-1">
+                                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                {p.age ?? '-'} yrs
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
+                                {p.mobile || '-'}
+                              </span>
+                            </div>
                             {isAdmin && (
-                              <div className="text-sm text-slate-600 dark:text-slate-300 leading-6">
-                                Role: {p.role === 'admin' ? 'Admin' : 'Player'}
+                              <div className="mt-1.5">
+                                <RoleBadge role={p.role} />
                               </div>
                             )}
                           </div>
-                          {renderAvatar(p, 'h-14 w-14', isAdmin)}
                         </div>
                         {isAdmin && (
-                          <div className="mt-2 flex gap-1.5">
+                          <div className="mt-2.5 flex gap-1.5">
                             <button
                               className="flex-1 px-2 py-1 rounded-lg border text-sm hover:bg-slate-100"
                               onClick={(e) => {
@@ -405,17 +507,17 @@ export default function PlayersScreen({
               })}
             </div>
 
-            <div className="hidden sm:block overflow-x-auto rounded-lg border">
+            <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-200 dark:border-navy-700">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-navy-800 text-left text-slate-500 dark:text-slate-400">
+                <thead className="bg-slate-50 dark:bg-navy-800 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                   <tr>
-                    <th className="p-2">Photo</th>
-                    <th className="p-2">Name</th>
-                    <th className="p-2">Age</th>
-                    <th className="p-2">Mobile</th>
-                    <th className="p-2">Skill Level</th>
-                    {isAdmin && <th className="p-2">Role</th>}
-                    <th className="p-2 text-right">Actions</th>
+                    <th className="px-3 py-2.5">Photo</th>
+                    <th className="px-3 py-2.5">Name</th>
+                    <th className="px-3 py-2.5">Age</th>
+                    <th className="px-3 py-2.5">Mobile</th>
+                    <th className="px-3 py-2.5">Skill</th>
+                    {isAdmin && <th className="px-3 py-2.5">Role</th>}
+                    <th className="px-3 py-2.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -424,16 +526,16 @@ export default function PlayersScreen({
                     return (
                       <tr
                         key={p.id}
-                        className={`border-t ${editing ? '' : 'cursor-pointer hover:bg-slate-50'}`}
+                        className={`border-t border-slate-100 dark:border-navy-800 transition-colors ${editing ? 'bg-navy-50/40 dark:bg-navy-800/40' : 'cursor-pointer hover:bg-navy-50/60 dark:hover:bg-navy-800/50'}`}
                         onClick={() => {
                           if (editing) return;
                           onOpenStats?.(p);
                         }}
                       >
-                        <td className="p-2 align-middle">
+                        <td className="px-3 py-2.5 align-middle">
                           {renderAvatar(p, 'h-11 w-11', isAdmin)}
                         </td>
-                        <td className="p-2">
+                        <td className="px-3 py-2.5">
                           {editing ? (
                             <input
                               className="w-full px-2 py-1 border rounded"
@@ -443,10 +545,10 @@ export default function PlayersScreen({
                               }
                             />
                           ) : (
-                            p.name
+                            <span className="font-medium text-slate-800 dark:text-slate-100">{p.name}</span>
                           )}
                         </td>
-                        <td className="p-2">
+                        <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">
                           {editing ? (
                             <input
                               type="number"
@@ -461,7 +563,7 @@ export default function PlayersScreen({
                             p.age ?? '-'
                           )}
                         </td>
-                        <td className="p-2">
+                        <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">
                           {editing ? (
                             <input
                               className="w-full px-2 py-1 border rounded"
@@ -474,7 +576,7 @@ export default function PlayersScreen({
                             p.mobile || '-'
                           )}
                         </td>
-                        <td className="p-2">
+                        <td className="px-3 py-2.5">
                           {editing ? (
                             <input
                               type="number"
@@ -487,11 +589,11 @@ export default function PlayersScreen({
                               }
                             />
                           ) : (
-                            p.skill
+                            <SkillBadge skill={p.skill} />
                           )}
                         </td>
                         {isAdmin && (
-                          <td className="p-2">
+                          <td className="px-3 py-2.5">
                             {editing ? (
                               <select
                                 className="w-28 px-2 py-1 border rounded bg-white dark:bg-navy-900"
@@ -504,11 +606,11 @@ export default function PlayersScreen({
                                 <option value="admin">Admin</option>
                               </select>
                             ) : (
-                              p.role === 'admin' ? 'Admin' : 'Player'
+                              <RoleBadge role={p.role} />
                             )}
                           </td>
                         )}
-                        <td className="p-2 text-right">
+                        <td className="px-3 py-2.5 text-right">
                           {isAdmin &&
                             (editing ? (
                               <div className="inline-flex gap-2">

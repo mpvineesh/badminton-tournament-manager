@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { isGameComplete, gameWinner, isGamePoint } from '../utils/scoring.js';
 
 function formatScore(value) {
@@ -9,7 +9,8 @@ function formatScore(value) {
 }
 
 function compactTeamLabel(name) {
-  const raw = String(name || '').trim();
+  // Strip a leading winner trophy so it isn't mistaken for the first player's name.
+  const raw = String(name || '').trim().replace(/^🏆\s*/, '');
   if (!raw) return 'TBD';
   return raw
     .split('&')
@@ -41,6 +42,133 @@ function renderPlayerRows(players = [], servingIndex = -1, tone = 'left') {
   );
 }
 
+function firstName(name) {
+  return String(name || '').trim().split(/\s+/)[0] || '';
+}
+
+// Which of the four service boxes each player occupies, for a LANDSCAPE court
+// (Team A on the left half, Team B on the right, net down the middle).
+// Badminton rule: the server stands in the RIGHT service court when their side's
+// score is EVEN and the LEFT court when ODD; the receiver is diagonally opposite.
+// Boxes are keyed TL/BL (Team A) and TR/BR (Team B). Team A faces right so their
+// right court is the lower box; Team B faces left so their right court is upper.
+function computeCourtPositions({
+  teamAPlayers = [],
+  teamBPlayers = [],
+  scoreA,
+  scoreB,
+  servingSide,
+  servingPlayerIndexA,
+  servingPlayerIndexB,
+  leftTeam = 'A',
+}) {
+  const cells = { TL: null, TR: null, BL: null, BR: null };
+  const aP = (teamAPlayers || []).filter(Boolean);
+  const bP = (teamBPlayers || []).filter(Boolean);
+  const aHalf = leftTeam === 'B' ? 'right' : 'left';
+  const bHalf = leftTeam === 'B' ? 'left' : 'right';
+  // A team's RIGHT service court is the bottom box on the left half (facing
+  // right) and the top box on the right half (facing left).
+  const serverPosFor = (half, even) =>
+    half === 'left' ? (even ? 'B' : 'T') : even ? 'T' : 'B';
+
+  // half 'left' = Team A (cells TL/BL), 'right' = Team B (TR/BR).
+  // pos 'T' = top box, 'B' = bottom box.
+  const placeServing = (half, players, serverIdx, pos) => {
+    const top = half === 'left' ? 'TL' : 'TR';
+    const bottom = half === 'left' ? 'BL' : 'BR';
+    const serverCell = pos === 'T' ? top : bottom;
+    const partnerCell = pos === 'T' ? bottom : top;
+    if (players.length === 0) return;
+    if (players.length === 1) {
+      cells[serverCell] = { name: players[0], serving: true };
+      return;
+    }
+    const sIdx = serverIdx === 1 ? 1 : 0;
+    cells[serverCell] = { name: players[sIdx], serving: true };
+    cells[partnerCell] = { name: players[1 - sIdx] };
+  };
+
+  const placeReceiving = (half, players, pos) => {
+    const top = half === 'left' ? 'TL' : 'TR';
+    const bottom = half === 'left' ? 'BL' : 'BR';
+    if (players.length === 0) return;
+    if (players.length === 1) {
+      cells[pos === 'T' ? top : bottom] = { name: players[0], receiving: true };
+      return;
+    }
+    // Doubles receivers keep their boxes; only the diagonal one is the receiver.
+    cells[top] = { name: players[0], receiving: pos === 'T' };
+    cells[bottom] = { name: players[1], receiving: pos === 'B' };
+  };
+
+  const serveScore = servingSide === 'A' ? scoreA : scoreB;
+  const even = (Number(serveScore) || 0) % 2 === 0;
+
+  if (servingSide === 'A') {
+    const pos = serverPosFor(aHalf, even);
+    placeServing(aHalf, aP, servingPlayerIndexA, pos);
+    placeReceiving(bHalf, bP, pos === 'T' ? 'B' : 'T'); // diagonal across the net
+  } else {
+    const pos = serverPosFor(bHalf, even);
+    placeServing(bHalf, bP, servingPlayerIndexB, pos);
+    placeReceiving(aHalf, aP, pos === 'T' ? 'B' : 'T');
+  }
+  return cells;
+}
+
+function CourtQuad({ data }) {
+  if (!data?.name) return <div />;
+  return (
+    <div className="flex items-center justify-center p-1">
+      <div
+        className={`flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shadow ${
+          data.serving
+            ? 'bg-amber-400 text-amber-950 ring-2 ring-white'
+            : data.receiving
+              ? 'bg-white text-emerald-900 ring-1 ring-emerald-300'
+              : 'bg-emerald-950/70 text-white'
+        }`}
+      >
+        {data.serving && <span className="leading-none">🏸</span>}
+        <span className="truncate">{firstName(data.name)}</span>
+      </div>
+    </div>
+  );
+}
+
+function CourtView(props) {
+  const cells = computeCourtPositions(props);
+  const leftTeam = props.leftTeam === 'B' ? 'B' : 'A';
+  const rightTeam = leftTeam === 'A' ? 'B' : 'A';
+  return (
+    <div className="mt-3 mx-auto w-full max-w-sm">
+      <div className="relative aspect-[5/2] overflow-hidden rounded-md border-2 border-white/80 bg-emerald-700 shadow-inner">
+        {/* centre line (runs the length of the court) */}
+        <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/50" />
+        {/* short service lines (parallel to the net) */}
+        <div className="absolute inset-y-0 left-[22%] w-px bg-white/35" />
+        <div className="absolute inset-y-0 right-[22%] w-px bg-white/35" />
+        {/* net (vertical, centre) */}
+        <div className="absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 bg-white" />
+        {/* side labels */}
+        <div className="absolute left-1 top-1 rounded bg-black/30 px-1 text-[9px] font-bold text-white">{leftTeam}</div>
+        <div className="absolute right-1 top-1 rounded bg-black/30 px-1 text-[9px] font-bold text-white">{rightTeam}</div>
+        {/* col 1 = Team A (left), col 2 = Team B (right); row 1 = top, row 2 = bottom */}
+        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+          <CourtQuad data={cells.TL} />
+          <CourtQuad data={cells.TR} />
+          <CourtQuad data={cells.BL} />
+          <CourtQuad data={cells.BR} />
+        </div>
+      </div>
+      <div className="mt-1 text-center text-[10px] text-slate-500 dark:text-slate-400">
+        🏸 serving · positions follow the score
+      </div>
+    </div>
+  );
+}
+
 export default function MatchScoringScreen({
   title,
   statusLabel,
@@ -62,6 +190,7 @@ export default function MatchScoringScreen({
   saving,
   locked,
 }) {
+  const [endsSwapped, setEndsSwapped] = useState(false);
   const disabled = Boolean(locked || saving);
   const teamALabel = compactTeamLabel(teamAName);
   const teamBLabel = compactTeamLabel(teamBName);
@@ -69,6 +198,65 @@ export default function MatchScoringScreen({
   const winnerSide = gameWinner(scoreA, scoreB);
   const gamePoint = isGamePoint(scoreA, scoreB);
   const leaderSide = (Number(scoreA) || 0) >= (Number(scoreB) || 0) ? 'A' : 'B';
+
+  const sA = Number(scoreA) || 0;
+  const sB = Number(scoreB) || 0;
+  // Ends can be changed before the first point or when a side reaches 11.
+  const canSwapEnds = !complete && ((sA === 0 && sB === 0) || sA === 11 || sB === 11);
+  const leftTeam = endsSwapped ? 'B' : 'A';
+  const rightTeam = endsSwapped ? 'A' : 'B';
+
+  const renderTeamCard = (team) => {
+    const isA = team === 'A';
+    const serving = servingSide === team;
+    return (
+      <div
+        key={team}
+        className={`overflow-hidden rounded-2xl border bg-gradient-to-b p-3 sm:p-5 shadow-sm ${
+          isA ? 'from-emerald-100 to-emerald-50 text-emerald-900' : 'from-rose-100 to-rose-50 text-rose-900'
+        } ${
+          serving
+            ? 'border-amber-300 ring-2 ring-amber-200/70 animate-pulse'
+            : isA
+              ? 'border-emerald-200'
+              : 'border-rose-200'
+        }`}
+      >
+        <div className={`mb-2 inline-flex rounded-full px-2 py-0.5 text-xs font-bold tracking-[0.25em] text-white ${isA ? 'bg-emerald-600' : 'bg-rose-600'}`}>
+          {team}
+        </div>
+        <div className="text-lg sm:text-2xl font-semibold leading-tight">{isA ? teamALabel : teamBLabel}</div>
+        <div className="mt-1 min-h-[44px]">
+          {renderPlayerRows(
+            isA ? teamAPlayers : teamBPlayers,
+            serving ? (isA ? servingPlayerIndexA : servingPlayerIndexB) : -1,
+            isA ? 'left' : 'right'
+          )}
+        </div>
+        <div className={`mt-4 text-6xl sm:text-7xl font-black leading-none ${isA ? 'text-emerald-700' : 'text-rose-700'}`}>
+          {formatScore(isA ? scoreA : scoreB)}
+        </div>
+      </div>
+    );
+  };
+
+  const renderPointButton = (team) => {
+    const isA = team === 'A';
+    return (
+      <button
+        key={team}
+        className={`min-h-[56px] rounded-xl border px-3 py-4 text-lg sm:text-2xl font-black text-white shadow-sm disabled:opacity-50 ${
+          isA
+            ? 'border-emerald-300 bg-gradient-to-b from-emerald-500 to-emerald-600'
+            : 'border-rose-300 bg-gradient-to-b from-rose-500 to-rose-600'
+        }`}
+        onClick={isA ? onPointA : onPointB}
+        disabled={disabled || complete}
+      >
+        + POINT
+      </button>
+    );
+  };
 
   return (
     <div className="rounded-2xl border border-navy-200/70 bg-gradient-to-br from-navy-100 via-navy-50 to-white dark:to-navy-900 p-3 sm:p-5 shadow-lg">
@@ -80,43 +268,13 @@ export default function MatchScoringScreen({
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
-        <div
-          className={`overflow-hidden rounded-2xl border bg-gradient-to-b from-emerald-100 to-emerald-50 p-3 sm:p-5 text-emerald-900 shadow-sm ${
-            servingSide === 'A'
-              ? 'border-amber-300 ring-2 ring-amber-200/70 animate-pulse'
-              : 'border-emerald-200'
-          }`}
-        >
-          <div className="mb-2 inline-flex rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-bold tracking-[0.25em] text-white">A</div>
-          <div className="text-lg sm:text-2xl font-semibold leading-tight">{teamALabel}</div>
-          <div className="mt-1 min-h-[44px]">
-            {renderPlayerRows(teamAPlayers, servingSide === 'A' ? servingPlayerIndexA : -1, 'left')}
-          </div>
-          <div className="mt-4 text-6xl sm:text-7xl font-black leading-none text-emerald-700">
-            {formatScore(scoreA)}
-          </div>
-        </div>
-        <div
-          className={`overflow-hidden rounded-2xl border bg-gradient-to-b from-rose-100 to-rose-50 p-3 sm:p-5 text-rose-900 shadow-sm ${
-            servingSide === 'B'
-              ? 'border-amber-300 ring-2 ring-amber-200/70 animate-pulse'
-              : 'border-rose-200'
-          }`}
-        >
-          <div className="mb-2 inline-flex rounded-full bg-rose-600 px-2 py-0.5 text-xs font-bold tracking-[0.25em] text-white">B</div>
-          <div className="text-lg sm:text-2xl font-semibold leading-tight">{teamBLabel}</div>
-          <div className="mt-1 min-h-[44px]">
-            {renderPlayerRows(teamBPlayers, servingSide === 'B' ? servingPlayerIndexB : -1, 'right')}
-          </div>
-          <div className="mt-4 text-6xl sm:text-7xl font-black leading-none text-rose-700">
-            {formatScore(scoreB)}
-          </div>
-        </div>
+        {renderTeamCard(leftTeam)}
+        {renderTeamCard(rightTeam)}
       </div>
 
       {complete ? (
         <div className="mt-3 rounded-xl border border-emerald-300 bg-emerald-50 p-2.5 text-center text-sm font-bold text-emerald-800">
-          Game complete — {(winnerSide === 'A' ? teamALabel : teamBLabel)} wins {Math.max(Number(scoreA) || 0, Number(scoreB) || 0)}–{Math.min(Number(scoreA) || 0, Number(scoreB) || 0)}
+          Game complete — {(winnerSide === 'A' ? teamALabel : teamBLabel)} wins {Math.max(sA, sB)}–{Math.min(sA, sB)}
         </div>
       ) : gamePoint ? (
         <div className="mt-3 rounded-xl border border-orange-300 bg-orange-50 p-2.5 text-center text-sm font-bold text-orange-700">
@@ -128,21 +286,32 @@ export default function MatchScoringScreen({
         </div>
       )}
 
+      {canSwapEnds && (
+        <div className="mt-3 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setEndsSwapped((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-navy-300 bg-white dark:bg-navy-800 px-4 py-1.5 text-sm font-semibold text-navy-800 dark:text-navy-100 shadow-sm hover:bg-navy-50 dark:hover:bg-navy-700"
+          >
+            ⇄ Change ends
+          </button>
+        </div>
+      )}
+
+      <CourtView
+        teamAPlayers={teamAPlayers}
+        teamBPlayers={teamBPlayers}
+        scoreA={scoreA}
+        scoreB={scoreB}
+        servingSide={servingSide}
+        servingPlayerIndexA={servingPlayerIndexA}
+        servingPlayerIndexB={servingPlayerIndexB}
+        leftTeam={leftTeam}
+      />
+
       <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
-        <button
-          className="min-h-[56px] rounded-xl border border-emerald-300 bg-gradient-to-b from-emerald-500 to-emerald-600 px-3 py-4 text-lg sm:text-2xl font-black text-white shadow-sm disabled:opacity-50"
-          onClick={onPointA}
-          disabled={disabled || complete}
-        >
-          + POINT
-        </button>
-        <button
-          className="min-h-[56px] rounded-xl border border-rose-300 bg-gradient-to-b from-rose-500 to-rose-600 px-3 py-4 text-lg sm:text-2xl font-black text-white shadow-sm disabled:opacity-50"
-          onClick={onPointB}
-          disabled={disabled || complete}
-        >
-          + POINT
-        </button>
+        {renderPointButton(leftTeam)}
+        {renderPointButton(rightTeam)}
       </div>
       {complete && (
         <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">

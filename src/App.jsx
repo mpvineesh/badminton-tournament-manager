@@ -57,6 +57,33 @@ import {
   uploadPlayerProfilePhoto,
 } from './supabaseAdapter.js';
 
+function fixtureDiffClass(n) {
+  const v = Number(n) || 0;
+  if (v > 0) return 'text-emerald-600 dark:text-emerald-400';
+  if (v < 0) return 'text-rose-600 dark:text-rose-400';
+  return 'text-slate-400';
+}
+function fixtureFmtDiff(n) {
+  const v = Number(n) || 0;
+  return v > 0 ? `+${v}` : `${v}`;
+}
+function FixtureRankBadge({ rank }) {
+  const styles = {
+    1: 'bg-gold-400 text-navy-900',
+    2: 'bg-slate-300 text-slate-800',
+    3: 'bg-amber-700/80 text-white',
+  };
+  return (
+    <span
+      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+        styles[rank] || 'bg-slate-100 text-slate-500 dark:bg-navy-800 dark:text-slate-300'
+      }`}
+    >
+      {rank}
+    </span>
+  );
+}
+
 function EditIcon({ className = 'h-4 w-4' }) {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
@@ -2673,6 +2700,131 @@ export default function App() {
     if (a.played !== b.played) return a.played - b.played;
     return a.groupName.localeCompare(b.groupName);
   });
+
+  // Group Points display for the fixture wizard. For pooled doubles we show
+  // per-team standings within each group; group-mode shows per-group totals.
+  function renderFixturePoints() {
+    const pools = t.pools || [];
+    if (pools.length === 0) {
+      return <div className="text-sm text-slate-500 dark:text-slate-400">No groups yet.</div>;
+    }
+
+    if (t.mode === 'group') {
+      return (
+        <div className="hidden sm:block overflow-x-auto rounded-lg border border-slate-200 dark:border-navy-700">
+          <table className="w-full text-sm">
+            <thead className="bg-navy-800 text-left text-xs uppercase tracking-wide text-navy-50">
+              <tr>
+                <th className="py-2 pl-3 pr-2">#</th>
+                <th className="py-2 pr-2">Group</th>
+                <th className="py-2 pr-2 text-center">Pts</th>
+                <th className="py-2 pr-2 text-center">P</th>
+                <th className="py-2 pr-3 text-center">W</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fixtureGroupPointRows.map((row, i) => (
+                <tr key={row.groupId} className={`border-t border-slate-100 dark:border-navy-800 ${i === 0 ? 'bg-gold-50/70 dark:bg-navy-800/60' : ''}`}>
+                  <td className="py-2 pl-3 pr-2"><FixtureRankBadge rank={i + 1} /></td>
+                  <td className="py-2 pr-2 font-medium text-slate-800 dark:text-slate-100">{row.groupName}</td>
+                  <td className="py-2 pr-2 text-center font-bold tabular-nums text-navy-800 dark:text-slate-100">{row.points}</td>
+                  <td className="py-2 pr-2 text-center tabular-nums">{row.played}</td>
+                  <td className="py-2 pr-3 text-center tabular-nums">{row.won}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    const poolTables = pools.map((p, idx) => ({
+      id: p.id,
+      name: p.name || groupNames[idx] || `Group ${idx + 1}`,
+      rows: (fixtureStandings[p.id] || [])
+        .map((r) => ({
+          id: `${p.id}-${r.teamId}`,
+          teamName: t.teamsById[r.teamId]?.name || r.teamId,
+          points: Number(r?.points || 0),
+          played: Number(r?.played || 0),
+          won: Number(r?.won || 0),
+          pointDiff: Number(r?.pf || 0) - Number(r?.pa || 0),
+        }))
+        .sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
+          if (b.won !== a.won) return b.won - a.won;
+          return a.teamName.localeCompare(b.teamName);
+        }),
+    }));
+
+    return (
+      <div className="space-y-4">
+        {poolTables.map((pool) => (
+          <div key={pool.id}>
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <span className="h-2 w-2 rounded-full bg-navy-500" />
+              {pool.name}
+              <span className="font-normal text-slate-400">· {pool.rows.length} teams</span>
+            </div>
+            {pool.rows.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-300 dark:border-navy-700 py-4 text-center text-xs text-slate-400">
+                No teams in this group.
+              </div>
+            ) : (
+              <>
+                <div className="sm:hidden space-y-2">
+                  {pool.rows.map((row, i) => (
+                    <div
+                      key={row.id}
+                      className={`flex items-center gap-3 rounded-xl border p-2.5 ${i === 0 ? 'border-gold-300 bg-gold-50 dark:border-navy-700 dark:bg-navy-800' : 'border-slate-200 dark:border-navy-700'}`}
+                    >
+                      <FixtureRankBadge rank={i + 1} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{row.teamName}</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{row.won}W · {row.played} played</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold tabular-nums text-navy-800 dark:text-slate-100">{row.points}</div>
+                        <div className={`text-[11px] font-medium ${fixtureDiffClass(row.pointDiff)}`}>{fixtureFmtDiff(row.pointDiff)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden sm:block overflow-x-auto rounded-lg border border-slate-200 dark:border-navy-700">
+                  <table className="w-full text-sm">
+                    <thead className="bg-navy-800 text-left text-xs uppercase tracking-wide text-navy-50">
+                      <tr>
+                        <th className="py-2 pl-3 pr-2">#</th>
+                        <th className="py-2 pr-2">Team</th>
+                        <th className="py-2 pr-2 text-center">Pts</th>
+                        <th className="py-2 pr-2 text-center">Diff</th>
+                        <th className="py-2 pr-2 text-center">P</th>
+                        <th className="py-2 pr-3 text-center">W</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pool.rows.map((row, i) => (
+                        <tr key={row.id} className={`border-t border-slate-100 dark:border-navy-800 ${i === 0 ? 'bg-gold-50/70 dark:bg-navy-800/60' : ''}`}>
+                          <td className="py-2 pl-3 pr-2"><FixtureRankBadge rank={i + 1} /></td>
+                          <td className="py-2 pr-2 font-medium text-slate-800 dark:text-slate-100">{row.teamName}</td>
+                          <td className="py-2 pr-2 text-center font-bold tabular-nums text-navy-800 dark:text-slate-100">{row.points}</td>
+                          <td className={`py-2 pr-2 text-center font-medium tabular-nums ${fixtureDiffClass(row.pointDiff)}`}>{fixtureFmtDiff(row.pointDiff)}</td>
+                          <td className="py-2 pr-2 text-center tabular-nums">{row.played}</td>
+                          <td className="py-2 pr-3 text-center tabular-nums">{row.won}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   const homeWelcomeName =
     String(profilePlayer?.name || '').trim() ||
     String(getLoggedInPlayerFromList()?.name || '').trim();
@@ -3744,50 +3896,16 @@ export default function App() {
             </Card>
 
             {t.groupMatches.length > 0 && (
-              <Card title="Group Fixtures & Results">
+              <Card title="Group Fixtures">
                 <MatchesTable
                   matches={t.groupMatches}
                   teamsById={t.teamsById}
                   poolsById={t.poolsById}
-                  onScoreChange={handleGroupScoreChange}
-                  onFinalize={handleFinalizeGroupMatch}
-                  onReset={handleResetGroupMatch}
                 />
 
                 <div className="rounded-xl border p-4 bg-white dark:bg-navy-900 mt-6">
                   <div className="font-semibold mb-2">Group Points</div>
-                  <div className="sm:hidden space-y-2">
-                    {fixtureGroupPointRows.map((row) => (
-                      <div key={row.groupId} className="rounded-lg border p-2.5">
-                        <div className="font-medium text-sm">{row.groupName}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          Pts: {row.points} | Played: {row.played} | Won: {row.won}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="hidden sm:block overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-slate-500 dark:text-slate-400">
-                          <th className="py-2 pr-2">Group</th>
-                          <th className="py-2">Points</th>
-                          <th className="py-2">Played</th>
-                          <th className="py-2">Won</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {fixtureGroupPointRows.map((row) => (
-                          <tr key={row.groupId} className="border-t">
-                            <td className="py-2 pr-2">{row.groupName}</td>
-                            <td className="py-2">{row.points}</td>
-                            <td className="py-2">{row.played}</td>
-                            <td className="py-2">{row.won}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {renderFixturePoints()}
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-6">
@@ -3812,51 +3930,16 @@ export default function App() {
         {/* Step 5: Groups */}
             {t.step === 5 && (
           <section className="mt-6 grid gap-6">
-            <Card title="Group Fixtures & Results">
+            <Card title="Group Fixtures">
               <MatchesTable
                 matches={t.groupMatches}
                 teamsById={t.teamsById}
                 poolsById={t.poolsById}
-                onScoreChange={handleGroupScoreChange}
-                onFinalize={handleFinalizeGroupMatch}
-                onReset={handleResetGroupMatch}
-                canResetCompletedMatches={isAdminUser}
               />
 
               <div className="rounded-xl border p-4 bg-white dark:bg-navy-900 mt-6">
                 <div className="font-semibold mb-2">Group Points</div>
-                <div className="sm:hidden space-y-2">
-                  {fixtureGroupPointRows.map((row) => (
-                    <div key={row.groupId} className="rounded-lg border p-2.5">
-                      <div className="font-medium text-sm">{row.groupName}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        Pts: {row.points} | Played: {row.played} | Won: {row.won}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-slate-500 dark:text-slate-400">
-                        <th className="py-2 pr-2">Group</th>
-                        <th className="py-2">Points</th>
-                        <th className="py-2">Played</th>
-                        <th className="py-2">Won</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {fixtureGroupPointRows.map((row) => (
-                        <tr key={row.groupId} className="border-t">
-                          <td className="py-2 pr-2">{row.groupName}</td>
-                          <td className="py-2">{row.points}</td>
-                          <td className="py-2">{row.played}</td>
-                          <td className="py-2">{row.won}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                {renderFixturePoints()}
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mt-6">
