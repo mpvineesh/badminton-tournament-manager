@@ -46,8 +46,7 @@ function FixturePrediction({ fixture, stats, loading, error, compact = false }) 
 }
 
 export default function FixturesScreen({
-  onBack,
-  showBack = false,
+  onOpenPredictions,
   loadPredictionAnalytics,
 }) {
   const [teamId, setTeamId] = useState('all');
@@ -96,11 +95,14 @@ export default function FixturesScreen({
             <span aria-hidden="true">✳</span>
             <strong>SMASH<span>PICKS</span></strong>
           </div>
-          {showBack && (
-            <button type="button" className="fixtures-back" onClick={onBack}>
-              ← Club
+          <div className="fixtures-nav-actions">
+            <a className="fixtures-back" href="/prediction-walkthrough.mp4" target="_blank" rel="noreferrer">
+              Watch guide
+            </a>
+            <button type="button" className="fixtures-back" onClick={onOpenPredictions}>
+              ← Predictions
             </button>
-          )}
+          </div>
         </nav>
 
         <header className="fixtures-heading">

@@ -3144,9 +3144,8 @@ export default function App() {
           />
         ) : activeMenu === 'fixtures' ? (
           <FixturesScreen
-            showBack={isLoggedIn}
             loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
-            onBack={() => setActiveMenu('home')}
+            onOpenPredictions={() => setActiveMenu('team-predictions')}
           />
         ) : activeMenu === 'tournaments' ? (
           <TournamentsScreen

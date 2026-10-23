@@ -35,13 +35,23 @@
   color: #c5f36b;
 }
 
+.fixtures-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .fixtures-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid #355452;
   border-radius: 10px;
   padding: 8px 12px;
   color: #dcebe6;
   background: #102728;
   font-size: 12px;
+  text-decoration: none;
 }
 
 .fixtures-heading {
@@ -377,10 +387,10 @@
 
   .fixtures-grid.is-list .fixture-card-title {
     display: grid;
-    justify-content: start;
+    align-content: center;
     gap: 5px;
     margin: 0;
-    font-size: 8px;
+    font-size: 7px;
     letter-spacing: 0;
   }
 
