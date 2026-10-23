@@ -1237,7 +1237,8 @@ export async function getTeamMatchPredictionAnalytics() {
     await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('getTeamMatchPredictionAnalytics');
     const snapshot = await getDoc(doc(fdb, 'team_prediction_aggregates', tournamentId));
-    const data = snapshot.exists() ? snapshot.data() : {};
+    if (!snapshot.exists()) return initializeTeamMatchPredictionAnalytics();
+    const data = snapshot.data();
     return {
       submissions: Number(data.submissions) || 0,
       fixtures: data.fixtures && typeof data.fixtures === 'object' ? data.fixtures : {},
