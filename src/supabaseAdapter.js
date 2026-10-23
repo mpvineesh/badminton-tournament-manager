@@ -6,11 +6,15 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
+  setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage as getFirebaseStorage, ref, uploadBytes } from 'firebase/storage';
 import { db, storage, hasFirebaseConfig, firebaseApp, ensureAnonymousAuth } from './firebaseClient.js';
@@ -606,6 +610,26 @@ export async function listPlayers() {
   }));
 }
 
+/** Find a player by mobile number without requiring the user to enter a name. */
+export async function getPlayerByMobile(mobile) {
+  const enteredDigits = String(mobile || '').replace(/\D/g, '');
+  const enteredLast10 = enteredDigits.slice(-10);
+  if (!/^[6-9]\d{9}$/.test(enteredLast10)) return null;
+
+  const players = await listPlayers();
+  const player = players.find((candidate) => {
+    const playerDigits = String(candidate?.mobile || '').replace(/\D/g, '');
+    return playerDigits === enteredDigits || playerDigits.slice(-10) === enteredLast10;
+  });
+  if (!player) return null;
+  return {
+    id: player.id,
+    name: String(player.name || '').trim(),
+    mobile: String(player.mobile || '').trim(),
+    role: normalizePlayerRole(player.role),
+  };
+}
+
 /**
  * Upsert many players into the master list.
  * @param {{name: string, skill: number}[]} players
@@ -1077,6 +1101,7 @@ export async function getPredictionByTournamentAndUser(tournamentId, predictorMo
   }
 
   if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('getPredictionByTournamentAndUser');
     const q = query(
       collection(fdb, 'predictions'),
@@ -1098,6 +1123,276 @@ export async function getPredictionByTournamentAndUser(tournamentId, predictorMo
     .limit(1);
   if (error) throw new Error(normalizeDbError('getPredictionByTournamentAndUser', error));
   return data?.[0] || null;
+}
+
+/**
+ * List the public team-prediction entries for the tournament.
+ * Only the predictor's display name and save time are returned alongside the
+ * payload; mobile numbers are not included in the member forecast view.
+ */
+export async function listTeamMatchPredictions() {
+  const tournamentId = 'whitefeather-team-predictions-2026';
+  let rows;
+
+  if (isMockMode()) {
+    rows = readStore(MOCK_PREDICTIONS_KEY, []).filter(
+      (row) => row?.tournament_id === tournamentId
+    );
+  } else if (isFirebaseMode()) {
+    const fdb = ensureFirebaseDb('listTeamMatchPredictions');
+    const q = query(
+      collection(fdb, 'team_prediction_summaries'),
+      where('tournament_id', '==', tournamentId)
+    );
+    const snap = await getDocs(q);
+    rows = snap.docs.map((item) => {
+      const data = item.data();
+      return {
+        id: item.id,
+        tournament_id: data.tournament_id,
+        updated_at: data.updated_at,
+        publicSummary: {
+          playedCount: Number(data.played_count) || 0,
+          winnerTeamId: Number(data.winner_team_id),
+          runnerUpTeamId: Number(data.runner_up_team_id),
+        },
+        payload: {
+          kind: 'team-match-predictions',
+          predictorName: String(data.predictor_name || '').trim(),
+          predictions: [],
+        },
+      };
+    });
+  } else {
+    const { data, error } = await supabase
+      .from('predictions')
+      .select('id, payload, updated_at')
+      .eq('tournament_id', tournamentId)
+      .order('updated_at', { ascending: false });
+    if (error) throw new Error(normalizeDbError('listTeamMatchPredictions', error));
+    rows = data || [];
+  }
+
+  return rows
+    .filter((row) => row?.payload?.kind === 'team-match-predictions')
+    .map((row) => ({
+      id: row.id,
+      payload: {
+        kind: 'team-match-predictions',
+        predictorName: String(row?.payload?.predictorName || '').trim(),
+        predictions: Array.isArray(row?.payload?.predictions) ? row.payload.predictions : [],
+      },
+      summary: row.publicSummary || null,
+      updated_at: row.updated_at || row.created_at || null,
+    }))
+    .sort((left, right) => String(right.updated_at || '').localeCompare(String(left.updated_at || '')));
+}
+
+/** List full prediction records for the admin-only detail view. */
+export async function listTeamMatchPredictionDetails() {
+  const tournamentId = 'whitefeather-team-predictions-2026';
+  let rows;
+
+  if (isMockMode()) {
+    rows = readStore(MOCK_PREDICTIONS_KEY, []).filter(
+      (row) => row?.tournament_id === tournamentId
+    );
+  } else if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
+    const fdb = ensureFirebaseDb('listTeamMatchPredictionDetails');
+    const snap = await getDocs(query(
+      collection(fdb, 'predictions'),
+      where('tournament_id', '==', tournamentId)
+    ));
+    rows = snap.docs.map((item) => ({ id: item.id, ...item.data() }));
+  } else {
+    const { data, error } = await supabase
+      .from('predictions')
+      .select('id, payload, created_at, updated_at')
+      .eq('tournament_id', tournamentId)
+      .order('updated_at', { ascending: false });
+    if (error) throw new Error(normalizeDbError('listTeamMatchPredictionDetails', error));
+    rows = data || [];
+  }
+
+  return rows
+    .filter((row) => row?.payload?.kind === 'team-match-predictions')
+    .map((row) => ({
+      id: row.id,
+      payload: {
+        kind: 'team-match-predictions',
+        predictorName: String(row?.payload?.predictorName || '').trim(),
+        predictions: Array.isArray(row?.payload?.predictions) ? row.payload.predictions : [],
+      },
+      created_at: row.created_at || row.updated_at || null,
+      updated_at: row.updated_at || row.created_at || null,
+    }))
+    .sort((left, right) => String(right.updated_at || '').localeCompare(String(left.updated_at || '')));
+}
+
+/** Return per-fixture winner and score-range counts without member identities. */
+export async function getTeamMatchPredictionAnalytics() {
+  const tournamentId = 'whitefeather-team-predictions-2026';
+  if (isFirebaseMode()) {
+    await ensureAnonymousAuth();
+    const fdb = ensureFirebaseDb('getTeamMatchPredictionAnalytics');
+    const snapshot = await getDoc(doc(fdb, 'team_prediction_aggregates', tournamentId));
+    const data = snapshot.exists() ? snapshot.data() : {};
+    return {
+      submissions: Number(data.submissions) || 0,
+      fixtures: data.fixtures && typeof data.fixtures === 'object' ? data.fixtures : {},
+    };
+  }
+
+  let rows;
+  if (isMockMode()) {
+    rows = readStore(MOCK_PREDICTIONS_KEY, []).filter(
+      (row) => row?.tournament_id === tournamentId
+    );
+  } else {
+    const { data, error } = await supabase
+      .from('predictions')
+      .select('payload')
+      .eq('tournament_id', tournamentId);
+    if (error) throw new Error(normalizeDbError('getTeamMatchPredictionAnalytics', error));
+    rows = data || [];
+  }
+
+  return aggregateTeamMatchPredictionRows(rows);
+}
+
+/** Seed the public aggregate from legacy records when an admin first opens the page. */
+export async function initializeTeamMatchPredictionAnalytics() {
+  if (!isFirebaseMode()) return getTeamMatchPredictionAnalytics();
+
+  const tournamentId = 'whitefeather-team-predictions-2026';
+  await ensureAnonymousAuth();
+  const fdb = ensureFirebaseDb('initializeTeamMatchPredictionAnalytics');
+  const aggregateRef = doc(fdb, 'team_prediction_aggregates', tournamentId);
+  const current = await getDoc(aggregateRef);
+  if (current.exists()) {
+    const data = current.data();
+    return {
+      submissions: Number(data.submissions) || 0,
+      fixtures: data.fixtures && typeof data.fixtures === 'object' ? data.fixtures : {},
+    };
+  }
+
+  const snap = await getDocs(query(
+    collection(fdb, 'predictions'),
+    where('tournament_id', '==', tournamentId)
+  ));
+  const aggregate = aggregateTeamMatchPredictionRows(
+    snap.docs.map((item) => item.data())
+  );
+  return runTransaction(fdb, async (transaction) => {
+    const latest = await transaction.get(aggregateRef);
+    if (latest.exists()) {
+      const data = latest.data();
+      return {
+        submissions: Number(data.submissions) || 0,
+        fixtures: data.fixtures && typeof data.fixtures === 'object' ? data.fixtures : {},
+      };
+    }
+    const initialized = { ...aggregate, updated_at: new Date().toISOString() };
+    transaction.set(aggregateRef, initialized);
+    return aggregate;
+  });
+}
+
+function aggregateTeamMatchPredictionRows(rows) {
+  const fixtures = {};
+  let submissions = 0;
+  for (const row of rows) {
+    if (row?.payload?.kind !== 'team-match-predictions') continue;
+    submissions += 1;
+    for (const prediction of Array.isArray(row.payload.predictions) ? row.payload.predictions : []) {
+      const fixtureId = String(prediction?.fixtureId || '');
+      const winnerTeamId = Number(prediction?.winnerTeamId);
+      if (!fixtureId || !Number.isFinite(winnerTeamId)) continue;
+      const entry = fixtures[fixtureId] || {
+        team1Votes: 0,
+        team2Votes: 0,
+        team1ScoreRanges: {},
+        team2ScoreRanges: {},
+      };
+      const side = winnerTeamId === Number(prediction.team1Id) ? 'team1' :
+        winnerTeamId === Number(prediction.team2Id) ? 'team2' : null;
+      if (!side) continue;
+      entry[`${side}Votes`] += 1;
+      const range = String(prediction.losingScoreRange || '');
+      if (range) {
+        entry[`${side}ScoreRanges`][range] =
+          (entry[`${side}ScoreRanges`][range] || 0) + 1;
+      }
+      fixtures[fixtureId] = entry;
+    }
+  }
+
+  return { submissions, fixtures };
+}
+
+function predictionAnalyticsIncrements(previousRows, nextPayload) {
+  const previous = aggregateTeamMatchPredictionRows(previousRows);
+  const next = aggregateTeamMatchPredictionRows([{ payload: nextPayload }]);
+  const fixtureIds = new Set([
+    ...Object.keys(previous.fixtures),
+    ...Object.keys(next.fixtures),
+  ]);
+  const fixtureIncrements = {};
+
+  for (const fixtureId of fixtureIds) {
+    const before = previous.fixtures[fixtureId] || {};
+    const after = next.fixtures[fixtureId] || {};
+    const delta = {};
+    for (const field of ['team1Votes', 'team2Votes']) {
+      const value = (after[field] || 0) - (before[field] || 0);
+      if (value) delta[field] = increment(value);
+    }
+    for (const side of ['team1', 'team2']) {
+      const rangeDelta = {};
+      const ranges = new Set([
+        ...Object.keys(before[`${side}ScoreRanges`] || {}),
+        ...Object.keys(after[`${side}ScoreRanges`] || {}),
+      ]);
+      for (const range of ranges) {
+        const value =
+          (after[`${side}ScoreRanges`]?.[range] || 0) -
+          (before[`${side}ScoreRanges`]?.[range] || 0);
+        if (value) rangeDelta[range] = increment(value);
+      }
+      if (Object.keys(rangeDelta).length) delta[`${side}ScoreRanges`] = rangeDelta;
+    }
+    if (Object.keys(delta).length) fixtureIncrements[fixtureId] = delta;
+  }
+
+  return {
+    submissions: increment(next.submissions - previous.submissions),
+    fixtures: fixtureIncrements,
+  };
+}
+
+/** Publish a safe community card for an older private prediction entry. */
+export async function publishTeamPredictionSummary(input) {
+  const id = String(input?.id || '').trim();
+  const summary = input?.summary;
+  if (!id) throw new Error('[publishTeamPredictionSummary] Missing prediction id');
+  if (!summary || !Number.isFinite(Number(summary.winnerTeamId)) ||
+      !Number.isFinite(Number(summary.runnerUpTeamId)) ||
+      !Number.isFinite(Number(summary.playedCount))) {
+    throw new Error('[publishTeamPredictionSummary] Invalid public summary');
+  }
+
+  await ensureAnonymousAuth();
+  const fdb = ensureFirebaseDb('publishTeamPredictionSummary');
+  await setDoc(doc(fdb, 'team_prediction_summaries', id), {
+    tournament_id: 'whitefeather-team-predictions-2026',
+    predictor_name: String(summary.predictorName || '').trim(),
+    winner_team_id: Number(summary.winnerTeamId),
+    runner_up_team_id: Number(summary.runnerUpTeamId),
+    played_count: Number(summary.playedCount),
+    updated_at: new Date().toISOString(),
+  });
 }
 
 /**
@@ -1151,29 +1446,118 @@ export async function savePrediction(input) {
       where('predictor_mobile', '==', mobile)
     );
     const snap = await getDocs(q);
+    const publicSummary = input?.publicSummary;
+    const shouldPublishSummary =
+      tid === 'whitefeather-team-predictions-2026' &&
+      publicSummary &&
+      Number.isFinite(Number(publicSummary.winnerTeamId)) &&
+      Number.isFinite(Number(publicSummary.runnerUpTeamId)) &&
+      Number.isFinite(Number(publicSummary.playedCount));
+
+    if (tid === 'whitefeather-team-predictions-2026') {
+      const stablePredictionRef = doc(
+        fdb,
+        'predictions',
+        `team-prediction-${encodeURIComponent(mobile)}`
+      );
+      const aggregateRef = doc(fdb, 'team_prediction_aggregates', tid);
+      const candidateRefs = [
+        ...snap.docs.map((item) => doc(fdb, 'predictions', item.id)),
+        stablePredictionRef,
+      ];
+      const uniqueRefs = [...new Map(candidateRefs.map((ref) => [ref.path, ref])).values()];
+      const aggregateBeforeWrite = await getDoc(aggregateRef);
+      let initialRows = [];
+      if (!aggregateBeforeWrite.exists()) {
+        const allSnap = await getDocs(query(
+          collection(fdb, 'predictions'),
+          where('tournament_id', '==', tid)
+        ));
+        initialRows = allSnap.docs.map((item) => item.data());
+      }
+
+      let resultId = '';
+      let createdAt = nowIso;
+      await runTransaction(fdb, async (transaction) => {
+        const aggregateSnapshot = await transaction.get(aggregateRef);
+        const predictionSnapshots = [];
+        for (const ref of uniqueRefs) {
+          predictionSnapshots.push({ ref, snapshot: await transaction.get(ref) });
+        }
+        const existingPredictions = predictionSnapshots.filter(({ snapshot }) => snapshot.exists());
+        const primary = existingPredictions[0] || null;
+        const predictionRef = primary?.ref || stablePredictionRef;
+        const oldRows = existingPredictions.map(({ snapshot }) => snapshot.data());
+        createdAt = primary?.snapshot.data()?.created_at || nowIso;
+        resultId = predictionRef.id;
+
+        transaction.set(predictionRef, sanitizeForFirestore({
+          ...row,
+          created_at: createdAt,
+        }), { merge: true });
+        for (const duplicate of existingPredictions) {
+          if (duplicate.ref.path === predictionRef.path) continue;
+          transaction.delete(duplicate.ref);
+          transaction.delete(doc(fdb, 'team_prediction_summaries', duplicate.ref.id));
+        }
+        if (shouldPublishSummary) {
+          transaction.set(doc(fdb, 'team_prediction_summaries', predictionRef.id), {
+            tournament_id: tid,
+            predictor_name: String(publicSummary.predictorName || '').trim(),
+            winner_team_id: Number(publicSummary.winnerTeamId),
+            runner_up_team_id: Number(publicSummary.runnerUpTeamId),
+            played_count: Number(publicSummary.playedCount),
+            updated_at: nowIso,
+          });
+        }
+
+        if (aggregateSnapshot.exists()) {
+          transaction.set(aggregateRef, {
+            ...predictionAnalyticsIncrements(oldRows, payload),
+            updated_at: nowIso,
+          }, { merge: true });
+        } else {
+          const rowsWithoutCurrentMember = initialRows.filter(
+            (existing) => String(existing?.predictor_mobile || '') !== mobile
+          );
+          rowsWithoutCurrentMember.push({ payload });
+          transaction.set(aggregateRef, {
+            ...aggregateTeamMatchPredictionRows(rowsWithoutCurrentMember),
+            updated_at: nowIso,
+          });
+        }
+      });
+      return { id: resultId, ...row, created_at: createdAt };
+    }
+
+    const batch = writeBatch(fdb);
+    let predictionId;
     if (snap.docs.length > 0) {
       const primary = snap.docs[0];
-      await updateDoc(
-        doc(fdb, 'predictions', primary.id),
-        sanitizeForFirestore({
-          ...row,
-        })
-      );
-      if (snap.docs.length > 1) {
-        await Promise.all(
-          snap.docs.slice(1).map((d) => deleteDoc(doc(fdb, 'predictions', d.id)))
-        );
-      }
-      return { id: primary.id, ...(primary.data() || {}), ...row };
-    }
-    const created = await addDoc(
-      collection(fdb, 'predictions'),
-      sanitizeForFirestore({
+      predictionId = primary.id;
+      batch.set(doc(fdb, 'predictions', predictionId), sanitizeForFirestore(row), { merge: true });
+      snap.docs.slice(1).forEach((duplicate) => {
+        batch.delete(doc(fdb, 'predictions', duplicate.id));
+      });
+    } else {
+      predictionId = doc(collection(fdb, 'predictions')).id;
+      batch.set(doc(fdb, 'predictions', predictionId), sanitizeForFirestore({
         ...row,
         created_at: nowIso,
-      })
-    );
-    return { id: created.id, ...row, created_at: nowIso };
+      }));
+    }
+    if (shouldPublishSummary) {
+      batch.set(doc(fdb, 'team_prediction_summaries', predictionId), {
+        tournament_id: tid,
+        predictor_name: String(publicSummary.predictorName || '').trim(),
+        winner_team_id: Number(publicSummary.winnerTeamId),
+        runner_up_team_id: Number(publicSummary.runnerUpTeamId),
+        played_count: Number(publicSummary.playedCount),
+        updated_at: nowIso,
+      });
+    }
+    await batch.commit();
+    return { id: predictionId, ...row, created_at: snap.docs[0]?.data()?.created_at || nowIso };
   }
 
   const deleteExisting = await supabase

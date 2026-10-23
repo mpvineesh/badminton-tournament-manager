@@ -25,6 +25,8 @@ import TournamentSettingsScreen from './components/TournamentSettingsScreen.jsx'
 import ProfileScreen from './components/ProfileScreen.jsx';
 import SkillLevelScreen from './components/SkillLevelScreen.jsx';
 import PredictionsScreen from './components/PredictionsScreen.jsx';
+import TeamPredictionsScreen from './components/TeamPredictionsScreen.jsx';
+import FixturesScreen from './components/FixturesScreen.jsx';
 import { roundRobin, toIsoLocal, computeStandings, isoDateToday } from './utils/tournament.js';
 import {
   initAnalytics,
@@ -42,6 +44,7 @@ import {
   createPlayer,
   deletePlayer,
   listPlayers,
+  getPlayerByMobile,
   listTournaments,
   subscribeTournaments,
   loadTournament,
@@ -52,8 +55,14 @@ import {
   listSkillSuggestionsBySuggester,
   saveSkillSuggestionsBySuggester,
   listSkillSuggestionAverages,
+  listTeamMatchPredictions,
+  listTeamMatchPredictionDetails,
+  getTeamMatchPredictionAnalytics,
+  initializeTeamMatchPredictionAnalytics,
   getPredictionByTournamentAndUser,
+  publishTeamPredictionSummary,
   savePrediction,
+  isFirebaseMode,
   uploadPlayerProfilePhoto,
 } from './supabaseAdapter.js';
 
@@ -111,6 +120,8 @@ export default function App() {
     'profile',
     'skill-level',
     'predictions',
+    'fixtures',
+    'team-predictions',
     'tournaments',
     'tournament-settings',
     'scoreboard',
@@ -118,6 +129,7 @@ export default function App() {
   const t = useTournamentState();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authenticatedMobile, setAuthenticatedMobile] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState('');
   const [playersDbList, setPlayersDbList] = useState([]);
@@ -201,7 +213,26 @@ export default function App() {
     initAnalytics();
     const storedMobile = window.localStorage.getItem(AUTH_MOBILE_KEY);
     if (storedMobile) {
+      setAuthenticatedMobile(storedMobile);
       setIsLoggedIn(true);
+      listPlayers()
+        .then((rows) => {
+          const digits = String(storedMobile).replace(/\D/g, '');
+          const mobile = digits.length > 10 ? digits.slice(-10) : digits;
+          const player = (rows || []).find((row) => {
+            const playerDigits = String(row?.mobile || '').replace(/\D/g, '');
+            const playerMobile = playerDigits.length > 10 ? playerDigits.slice(-10) : playerDigits;
+            return mobile && playerMobile === mobile;
+          });
+          const isAdmin = Boolean(player?.role === 'admin' || mobile === '9567723832');
+          setIsAdminUser(isAdmin);
+          if (player?.id) {
+            setAnalyticsUser(player.id, { role: isAdmin ? 'admin' : 'player' });
+          }
+        })
+        .catch((error) => {
+          console.error('Unable to restore the signed-in player role.', error);
+        });
       // Prefer a deep-link URL (e.g. /players, /tournament/:id) over the saved
       // menu, but a plain launch at "/" resumes the last screen.
       const pathname = window.location.pathname;
@@ -224,8 +255,15 @@ export default function App() {
       }
     } else {
       setIsLoggedIn(false);
+      setAuthenticatedMobile('');
+      setIsAdminUser(false);
       window.localStorage.removeItem(ACTIVE_MENU_KEY);
-      setActiveMenu('login');
+      const urlNav = pathToNav(window.location.pathname);
+      setActiveMenu(
+        ['team-predictions', 'fixtures'].includes(urlNav?.activeMenu)
+          ? urlNav.activeMenu
+          : 'login'
+      );
     }
   }, []);
 
@@ -421,6 +459,7 @@ export default function App() {
       clearAnalyticsUser();
       setIsAdminUser(false);
       setIsLoggedIn(false);
+      setAuthenticatedMobile('');
       setActiveMenu('login');
       return;
     }
@@ -459,6 +498,7 @@ export default function App() {
         throw new Error('Mobile number not found in players list.');
       }
       window.localStorage.setItem(AUTH_MOBILE_KEY, enteredMobile);
+      setAuthenticatedMobile(enteredMobile);
       const nextIsAdmin = Boolean(isDemoAdmin || matchedPlayer?.role === 'admin');
       setIsAdminUser(nextIsAdmin);
       setIsLoggedIn(true);
@@ -737,6 +777,56 @@ export default function App() {
     } finally {
       setPredictionSaving(false);
     }
+  }
+
+  async function saveTeamMatchPredictions(input) {
+    setPredictionSaving(true);
+    try {
+      return await savePrediction({
+        tournamentId: 'whitefeather-team-predictions-2026',
+        predictorMobile: input.mobile,
+        payload: {
+          kind: 'team-match-predictions',
+          predictorName: input.name,
+          predictions: input.predictions,
+        },
+        publicSummary: input.publicSummary,
+      });
+    } catch (e) {
+      console.error(e);
+      throw new Error(e?.message || 'Unable to submit predictions.');
+    } finally {
+      setPredictionSaving(false);
+    }
+  }
+
+  async function loadTeamMatchPredictionByMobile(mobile) {
+    return getPredictionByTournamentAndUser(
+      'whitefeather-team-predictions-2026',
+      mobile
+    );
+  }
+
+  async function loadTeamPredictionPlayerByMobile(mobile) {
+    return getPlayerByMobile(mobile);
+  }
+
+  function handleTeamPredictionIdentity(player) {
+    const mobile = String(player?.mobile || '').trim();
+    if (!mobile) return;
+    window.localStorage.setItem(AUTH_MOBILE_KEY, mobile);
+    setAuthenticatedMobile(mobile);
+    const isAdmin = player.role === 'admin' || mobile.replace(/\D/g, '').slice(-10) === '9567723832';
+    setIsAdminUser(isAdmin);
+    setIsLoggedIn(true);
+    if (player.id) {
+      setAnalyticsUser(player.id, { role: isAdmin ? 'admin' : 'player' });
+    }
+  }
+
+  async function publishLegacyTeamPredictionSummary(input) {
+    if (!isFirebaseMode()) return;
+    return publishTeamPredictionSummary(input);
   }
 
   async function saveMyProfile(updates) {
@@ -2842,9 +2932,15 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen overflow-x-clip bg-gradient-to-b from-slate-50 to-navy-50 dark:from-navy-900 dark:to-navy-900 text-slate-900 dark:text-slate-100">
+    <div
+      className={`min-h-screen overflow-x-clip ${
+        ['team-predictions', 'fixtures'].includes(activeMenu)
+          ? 'bg-[#071719] text-[#edf7f5]'
+          : 'bg-gradient-to-b from-slate-50 to-navy-50 dark:from-navy-900 dark:to-navy-900 text-slate-900 dark:text-slate-100'
+      }`}
+    >
       <Toast toasts={toasts} onDismiss={dismissToast} />
-      <AppHeader
+      {!['team-predictions', 'fixtures'].includes(activeMenu) && <AppHeader
         menuRef={menuRef}
         menuOpen={menuOpen}
         setMenuOpen={setMenuOpen}
@@ -2877,6 +2973,14 @@ export default function App() {
           setMenuOpen(false);
           setActiveMenu('predictions');
         }}
+        onFixtures={() => {
+          setMenuOpen(false);
+          setActiveMenu('fixtures');
+        }}
+        onTeamPredictions={() => {
+          setMenuOpen(false);
+          setActiveMenu('team-predictions');
+        }}
         onProfile={() => {
           setMenuOpen(false);
           setActiveMenu('profile');
@@ -2893,12 +2997,18 @@ export default function App() {
           setActiveMenu('tournaments');
         }}
         onAuth={handleAuthMenu}
-      />
+      />}
 
       {/* Main */}
-      <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-32 sm:pb-28">
-        <div ref={messageTopRef} />
-        {!isLoggedIn ? (
+      <main
+        className={
+          ['team-predictions', 'fixtures'].includes(activeMenu)
+            ? 'w-full'
+            : 'max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-32 sm:pb-28'
+        }
+      >
+        {!['team-predictions', 'fixtures'].includes(activeMenu) && <div ref={messageTopRef} />}
+        {!isLoggedIn && !['team-predictions', 'fixtures'].includes(activeMenu) ? (
           <LoginScreen
             onLogin={handleMobileOtpLogin}
             loading={authBusy}
@@ -3013,6 +3123,30 @@ export default function App() {
             savePrediction={saveMyPrediction}
             busy={predictionSaving}
             error={predictionError}
+          />
+        ) : activeMenu === 'team-predictions' ? (
+          <TeamPredictionsScreen
+            onSave={saveTeamMatchPredictions}
+            loadPredictionByMobile={loadTeamMatchPredictionByMobile}
+            loadPlayerByMobile={loadTeamPredictionPlayerByMobile}
+            publishLegacySummary={publishLegacyTeamPredictionSummary}
+            loadPredictions={listTeamMatchPredictions}
+            loadPredictionDetails={listTeamMatchPredictionDetails}
+            loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
+            initializePredictionAnalytics={initializeTeamMatchPredictionAnalytics}
+            isAdmin={isAdminUser}
+            authenticatedMobile={authenticatedMobile}
+            onPredictionIdentity={handleTeamPredictionIdentity}
+            busy={predictionSaving}
+            showBack={isLoggedIn}
+            onBack={() => setActiveMenu('home')}
+            onOpenFixtures={() => setActiveMenu('fixtures')}
+          />
+        ) : activeMenu === 'fixtures' ? (
+          <FixturesScreen
+            showBack={isLoggedIn}
+            loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
+            onBack={() => setActiveMenu('home')}
           />
         ) : activeMenu === 'tournaments' ? (
           <TournamentsScreen
@@ -4144,11 +4278,15 @@ export default function App() {
         />
       </main>
 
-      <footer className="max-w-6xl mx-auto px-3 sm:px-4 py-8 pb-28 sm:py-10 md:pb-10 text-xs text-slate-500 dark:text-slate-400 text-center">
-        Powered by Whitefeather
-      </footer>
+      {!['team-predictions', 'fixtures'].includes(activeMenu) && (
+        <footer className="max-w-6xl mx-auto px-3 sm:px-4 py-8 pb-28 sm:py-10 md:pb-10 text-xs text-slate-500 dark:text-slate-400 text-center">
+          Powered by Whitefeather
+        </footer>
+      )}
 
-      {isLoggedIn && <BottomNav activeMenu={activeMenu} onNavigate={handleBottomNav} />}
+      {isLoggedIn && !['team-predictions', 'fixtures'].includes(activeMenu) && (
+        <BottomNav activeMenu={activeMenu} onNavigate={handleBottomNav} />
+      )}
     </div>
   );
 }

@@ -31,6 +31,19 @@ service cloud.firestore {
       allow write: if signedIn();
     }
 
+    // Public member cards contain only a display name and projected winner
+    // and runner-up; mobile numbers and game-by-game picks remain private.
+    match /team_prediction_summaries/{summaryId} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // Team fixture-level totals contain no member identity or individual picks.
+    match /team_prediction_aggregates/{aggregateId} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
     // Skill suggestions: public read; signed-in write.
     match /skill_suggestions/{suggId} {
       allow read: if true;

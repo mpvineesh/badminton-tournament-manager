@@ -14,6 +14,8 @@ const MENU_TO_PATH = {
   profile: '/profile',
   'skill-level': '/skill',
   predictions: '/predictions',
+  fixtures: '/fixtures',
+  'team-predictions': '/team-predictions',
   scoreboard: '/scoreboard',
   tournaments: '/tournaments',
   login: '/login',
