@@ -360,9 +360,7 @@ export default function TeamPredictionsScreen({
   authenticatedMobile = '',
   onPredictionIdentity,
   busy = false,
-  onBack,
   onOpenFixtures,
-  showBack = false,
 }) {
   const [picks, setPicks] = useState({});
   const [identityDialogOpen, setIdentityDialogOpen] = useState(!authenticatedMobile);
@@ -661,12 +659,11 @@ export default function TeamPredictionsScreen({
     <div className="smash-picks">
       <div className="smash-picks-shell">
         <nav className="smash-nav" aria-label="Tournament predictions">
-          <button className="smash-brand" type="button" onClick={onBack} disabled={!showBack} aria-label="Back to Whitefeather">
+          <div className="smash-brand">
             <span className="smash-mark">✳</span>
             <span>SMASH<span>PICKS</span></span>
-          </button>
+          </div>
           <span className="smash-pill">
-            {showBack && <button type="button" onClick={onBack} className="smash-back-link">← Club</button>}
             🏸 MORNING BATCH · 2026
             <button type="button" onClick={onOpenFixtures} className="smash-fixtures-link">
               Fixtures
@@ -746,43 +743,6 @@ export default function TeamPredictionsScreen({
           </p>
         </section>
 
-        <section className="smash-my-result" aria-live="polite">
-          <div className="smash-my-result-header">
-            <div>
-              <div className="smash-forecast-label">✦ YOUR PERSONAL TOURNAMENT FORECAST</div>
-              <h2>My Prediction Result</h2>
-            </div>
-            <span className="smash-forecast-badge">
-              {forecast.playedCount} / {FIXTURES.length} games picked
-            </span>
-          </div>
-          <div className="smash-my-result-grid">
-            <div className="smash-my-result-card">
-              <div className="smash-my-result-icon">🏆</div>
-              <div className="smash-my-result-label">PREDICTED WINNER</div>
-              <div className="smash-my-result-name">{forecast.playedCount ? forecast.winner.name : 'Make your picks'}</div>
-              <div className="smash-my-result-percent">
-                {forecast.playedCount ? `${forecast.winnerChance.toFixed(1)}%` : '—'}
-              </div>
-              <div className="smash-my-result-hint">Chance to finish 1st</div>
-            </div>
-            <div className="smash-my-result-card runner">
-              <div className="smash-my-result-icon">🥈</div>
-              <div className="smash-my-result-label">PREDICTED RUNNER-UP</div>
-              <div className="smash-my-result-name">{forecast.playedCount ? forecast.runnerUp.name : 'Make your picks'}</div>
-              <div className="smash-my-result-percent">
-                {forecast.playedCount ? `${forecast.runnerUpChance.toFixed(1)}%` : '—'}
-              </div>
-              <div className="smash-my-result-hint">Chance to finish 2nd</div>
-            </div>
-          </div>
-          {forecast.playedCount > 0 && (
-            <p className="smash-my-result-caption">
-              Based on your picks and {SIMULATIONS.toLocaleString()} simulated tournament outcomes. The most likely winner and runner-up are calculated independently.
-            </p>
-          )}
-        </section>
-
         <section className="smash-member-results" aria-labelledby="member-results-title">
           <div className="smash-member-results-head">
             <div>
@@ -852,7 +812,14 @@ export default function TeamPredictionsScreen({
                       const fixture = FIXTURES.find((item) => item.id === prediction.fixtureId);
                       const winnerTeamId = Number(prediction.winnerTeamId);
                       if (!fixture || ![fixture.team1.id, fixture.team2.id].includes(winnerTeamId)) return null;
-                      return { fixture, prediction, winner: winnerTeamId === fixture.team1.id ? fixture.team1 : fixture.team2 };
+                      const winner = winnerTeamId === fixture.team1.id ? fixture.team1 : fixture.team2;
+                      const loser = winnerTeamId === fixture.team1.id ? fixture.team2 : fixture.team1;
+                      return {
+                        fixture,
+                        prediction,
+                        winnerPlayers: getFixturePlayers(fixture, winner),
+                        loserPlayers: getFixturePlayers(fixture, loser),
+                      };
                     })
                     .filter(Boolean)
                     .sort((left, right) => left.fixture.number - right.fixture.number);
@@ -868,10 +835,11 @@ export default function TeamPredictionsScreen({
                       <div className="smash-admin-match-list">
                         {memberPredictions.length === 0 ? (
                           <p>No match picks saved.</p>
-                        ) : memberPredictions.map(({ fixture, prediction, winner }) => (
+                        ) : memberPredictions.map(({ fixture, prediction, winnerPlayers, loserPlayers }) => (
                           <div className="smash-admin-match" key={fixture.id}>
-                            <span>Match {String(fixture.number).padStart(2, '0')} · {fixture.team1.name} vs {fixture.team2.name} ({fixture.pairing.id})</span>
-                            <strong>{winner.name} predicted to win</strong>
+                            <span>Match {String(fixture.number).padStart(2, '0')} · {getFixturePlayers(fixture, fixture.team1)} vs {getFixturePlayers(fixture, fixture.team2)} ({fixture.pairing.id})</span>
+                            <strong><span aria-hidden="true">🏆</span> Winner pick: {winnerPlayers}</strong>
+                            <small>Other side: {loserPlayers}</small>
                             {prediction.losingScoreRange && (
                               <small>Losing score: {SCORE_RANGES.find((range) => range.id === prediction.losingScoreRange)?.label || prediction.losingScoreRange}</small>
                             )}
@@ -963,6 +931,43 @@ export default function TeamPredictionsScreen({
           <p className="smash-forecast-note">
             {forecast.playedCount} of {FIXTURES.length} fixtures predicted. A win is worth 10 base points. A losing score below 10 adds 5 points to the winner and −1 to the loser; 10–16 adds 3 points to the winner; 17–21 adds no bonus. For unpicked fixtures, each side has an equal chance in the {SIMULATIONS.toLocaleString()} simulations. Unresolved ties are broken randomly, so these are scenario probabilities—not guarantees.
           </p>
+        </section>
+
+        <section className="smash-my-result" aria-live="polite">
+          <div className="smash-my-result-header">
+            <div>
+              <div className="smash-forecast-label">✦ YOUR PERSONAL TOURNAMENT FORECAST</div>
+              <h2>My Prediction Result</h2>
+            </div>
+            <span className="smash-forecast-badge">
+              {forecast.playedCount} / {FIXTURES.length} games picked
+            </span>
+          </div>
+          <div className="smash-my-result-grid">
+            <div className="smash-my-result-card">
+              <div className="smash-my-result-icon">🏆</div>
+              <div className="smash-my-result-label">PREDICTED WINNER</div>
+              <div className="smash-my-result-name">{forecast.playedCount ? forecast.winner.name : 'Make your picks'}</div>
+              <div className="smash-my-result-percent">
+                {forecast.playedCount ? `${forecast.winnerChance.toFixed(1)}%` : '—'}
+              </div>
+              <div className="smash-my-result-hint">Chance to finish 1st</div>
+            </div>
+            <div className="smash-my-result-card runner">
+              <div className="smash-my-result-icon">🥈</div>
+              <div className="smash-my-result-label">PREDICTED RUNNER-UP</div>
+              <div className="smash-my-result-name">{forecast.playedCount ? forecast.runnerUp.name : 'Make your picks'}</div>
+              <div className="smash-my-result-percent">
+                {forecast.playedCount ? `${forecast.runnerUpChance.toFixed(1)}%` : '—'}
+              </div>
+              <div className="smash-my-result-hint">Chance to finish 2nd</div>
+            </div>
+          </div>
+          {forecast.playedCount > 0 && (
+            <p className="smash-my-result-caption">
+              Based on your picks and {SIMULATIONS.toLocaleString()} simulated tournament outcomes. The most likely winner and runner-up are calculated independently.
+            </p>
+          )}
         </section>
 
         {(formError || saveError) && !identityDialogOpen && (

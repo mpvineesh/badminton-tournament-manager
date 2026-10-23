@@ -3138,8 +3138,6 @@ export default function App() {
             authenticatedMobile={authenticatedMobile}
             onPredictionIdentity={handleTeamPredictionIdentity}
             busy={predictionSaving}
-            showBack={isLoggedIn}
-            onBack={() => setActiveMenu('home')}
             onOpenFixtures={() => setActiveMenu('fixtures')}
           />
         ) : activeMenu === 'fixtures' ? (
