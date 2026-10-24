@@ -1362,17 +1362,14 @@
   }
 
   .smash-nav {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
     margin-bottom: 19px;
   }
 
   .smash-pill {
-    align-self: stretch;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    width: 100%;
-    white-space: normal;
+    gap: 5px;
+    padding: 6px 8px;
+    font-size: 9px;
   }
 
   .smash-hero {
@@ -1638,8 +1635,13 @@
   }
 
   .smash-pill {
-    gap: 6px;
-    padding: 8px 9px;
+    gap: 4px;
+    padding: 5px 6px;
+    font-size: 8px;
+  }
+
+  .smash-fixtures-link {
+    padding: 4px 6px;
     font-size: 9px;
   }
 
@@ -1671,6 +1673,34 @@
 
   .smash-sticky-summary {
     font-size: 11px;
+  }
+}
+
+@media (max-width: 360px) {
+  .smash-nav {
+    gap: 0;
+  }
+
+  .smash-brand {
+    gap: 7px;
+    font-size: 15px;
+  }
+
+  .smash-mark {
+    width: 30px;
+    height: 30px;
+    font-size: 20px;
+  }
+
+  .smash-pill {
+    gap: 3px;
+    padding: 4px 2px;
+    font-size: 6px;
+  }
+
+  .smash-fixtures-link {
+    padding: 3px 5px;
+    font-size: 7px;
   }
 
   .smash-primary {
