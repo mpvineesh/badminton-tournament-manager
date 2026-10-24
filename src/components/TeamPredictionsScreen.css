@@ -1362,7 +1362,17 @@
   }
 
   .smash-nav {
+    align-items: stretch;
+    flex-direction: column;
     margin-bottom: 19px;
+  }
+
+  .smash-pill {
+    align-self: stretch;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    width: 100%;
+    white-space: normal;
   }
 
   .smash-hero {

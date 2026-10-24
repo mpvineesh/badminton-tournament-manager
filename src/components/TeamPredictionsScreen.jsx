@@ -813,12 +813,10 @@ export default function TeamPredictionsScreen({
                       const winnerTeamId = Number(prediction.winnerTeamId);
                       if (!fixture || ![fixture.team1.id, fixture.team2.id].includes(winnerTeamId)) return null;
                       const winner = winnerTeamId === fixture.team1.id ? fixture.team1 : fixture.team2;
-                      const loser = winnerTeamId === fixture.team1.id ? fixture.team2 : fixture.team1;
                       return {
                         fixture,
                         prediction,
                         winnerPlayers: getFixturePlayers(fixture, winner),
-                        loserPlayers: getFixturePlayers(fixture, loser),
                       };
                     })
                     .filter(Boolean)
@@ -835,11 +833,10 @@ export default function TeamPredictionsScreen({
                       <div className="smash-admin-match-list">
                         {memberPredictions.length === 0 ? (
                           <p>No match picks saved.</p>
-                        ) : memberPredictions.map(({ fixture, prediction, winnerPlayers, loserPlayers }) => (
+                        ) : memberPredictions.map(({ fixture, prediction, winnerPlayers }) => (
                           <div className="smash-admin-match" key={fixture.id}>
                             <span>Match {String(fixture.number).padStart(2, '0')} · {getFixturePlayers(fixture, fixture.team1)} vs {getFixturePlayers(fixture, fixture.team2)} ({fixture.pairing.id})</span>
                             <strong><span aria-hidden="true">🏆</span> Winner pick: {winnerPlayers}</strong>
-                            <small>Other side: {loserPlayers}</small>
                             {prediction.losingScoreRange && (
                               <small>Losing score: {SCORE_RANGES.find((range) => range.id === prediction.losingScoreRange)?.label || prediction.losingScoreRange}</small>
                             )}
