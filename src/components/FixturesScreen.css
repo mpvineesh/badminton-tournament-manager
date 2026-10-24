@@ -83,17 +83,14 @@
 }
 
 .fixtures-filter {
-  display: grid;
+  display: flex;
+  align-items: center;
   min-width: 190px;
-  gap: 7px;
-  color: #a6c0ba;
-  font-size: 11px;
-  font-weight: 700;
 }
 
 .fixtures-filter select {
   width: 100%;
-  min-height: 42px;
+  height: 42px;
   border: 1px solid #41605b;
   border-radius: 11px;
   padding: 0 36px 0 12px;
@@ -104,8 +101,8 @@
 }
 
 .fixtures-tools {
-  display: grid;
-  justify-items: end;
+  display: flex;
+  align-items: center;
   gap: 9px;
 }
 
@@ -119,6 +116,7 @@
 }
 
 .fixtures-view-toggle button {
+  min-height: 34px;
   border: 0;
   border-radius: 7px;
   padding: 6px 12px;
@@ -356,9 +354,7 @@
   }
 
   .fixtures-tools {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-    justify-items: stretch;
+    align-items: center;
   }
 
   .fixtures-filter {

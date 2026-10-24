@@ -112,8 +112,7 @@ export default function FixturesScreen({
             <p>Browse every team matchup or filter to follow one team’s schedule.</p>
           </div>
           <div className="fixtures-tools">
-            <label className="fixtures-filter">
-              <span>Filter by team</span>
+            <label className="fixtures-filter" aria-label="Filter fixtures by team">
               <select value={teamId} onChange={(event) => setTeamId(event.target.value)}>
                 <option value="all">All teams</option>
                 {TEAMS.map((team) => (
