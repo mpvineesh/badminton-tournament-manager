@@ -633,7 +633,7 @@ export default function TeamPredictionsScreen({
       '',
       '🎯 Predict more than 30 games correctly to qualify.',
       '━━━━━━━━━━━━━━━━━━━━',
-      'Create your prediction: https://white-feather.web.app/team-predictions',
+      'Create your prediction: https://white-feather.web.app/predictions',
     ].join('\n');
 
     const shareUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;

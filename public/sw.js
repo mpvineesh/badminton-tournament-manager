@@ -4,7 +4,7 @@
 // assets. Cross-origin requests (Firebase, Supabase, the Tailwind CDN) and any
 // non-GET request are left untouched so live data and writes are never cached.
 
-const CACHE = 'whitefeather-v1';
+const CACHE = 'whitefeather-v2';
 const OFFLINE_URL = '/';
 
 self.addEventListener('install', (event) => {
@@ -54,7 +54,7 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(new Request(request, { cache: 'no-cache' }))
         .then((response) => {
           const copy = response.clone();
           caches.open(CACHE).then((cache) => cache.put(OFFLINE_URL, copy));

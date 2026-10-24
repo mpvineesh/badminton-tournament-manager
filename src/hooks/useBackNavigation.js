@@ -13,9 +13,9 @@ const MENU_TO_PATH = {
   'player-stats': '/players/stats',
   profile: '/profile',
   'skill-level': '/skill',
-  predictions: '/predictions',
+  predictions: '/tournament-predictions',
   fixtures: '/fixtures',
-  'team-predictions': '/team-predictions',
+  'team-predictions': '/predictions',
   scoreboard: '/scoreboard',
   tournaments: '/tournaments',
   login: '/login',
@@ -38,6 +38,9 @@ export function navToPath(nav) {
 
 export function pathToNav(pathname) {
   const clean = (pathname || '/').replace(/\/+$/, '') || '/';
+  if (clean === '/team-predictions') {
+    return { activeMenu: 'team-predictions', tournamentView: 'list', selectedTournamentId: null };
+  }
   const m = clean.match(/^\/tournament\/([^/]+)(?:\/(settings|matches|points|match))?$/);
   if (m) {
     const selectedTournamentId = m[1];
