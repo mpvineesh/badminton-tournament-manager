@@ -668,14 +668,6 @@ export default function TeamPredictionsScreen({
             <button type="button" onClick={onOpenFixtures} className="smash-fixtures-link">
               Fixtures
             </button>
-            <a
-              className="smash-fixtures-link"
-              href="/prediction-walkthrough.mp4"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Watch guide
-            </a>
           </span>
         </nav>
 
