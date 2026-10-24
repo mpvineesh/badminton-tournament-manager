@@ -1,3 +1,5 @@
+import WinnerBonusRulesEditor from './components/WinnerBonusRulesEditor.jsx';
+import { getWinnerBonusRules } from './utils/pointSystem.js';
 // ================================
 // FILE: src/App.jsx
 // ================================
@@ -153,8 +155,7 @@ export default function App() {
     { levelA1: 3, levelA2: 4, levelB1: 3, levelB2: 4 },
   ]);
   const [winnerTeamPoint, setWinnerTeamPoint] = useState(2);
-  const [winnerBonusOppScoreLessThan, setWinnerBonusOppScoreLessThan] = useState(0);
-  const [winnerBonusPoint, setWinnerBonusPoint] = useState(0);
+  const [winnerBonusRules, setWinnerBonusRules] = useState([{ opponentScoreLessThan: 0, points: 0 }]);
   const [loserBonusScoreGreaterThan, setLoserBonusScoreGreaterThan] = useState(0);
   const [loserBonusPoint, setLoserBonusPoint] = useState(0);
   const [tournamentStatus, setTournamentStatus] = useState('Upcoming');
@@ -1203,6 +1204,17 @@ export default function App() {
             updates?.groupGamesBetweenGroups ?? selectedTournament.groupGamesBetweenGroups
           ) || 0
         ),
+        teams: (Array.isArray(selectedTournament.teams) ? selectedTournament.teams : []).map(
+          (team) => {
+            const name = String(
+              updates?.teamNames?.[team.id] ?? team.name ?? ''
+            ).trim();
+            if (!name) {
+              throw new Error('Every team must have a name.');
+            }
+            return { ...team, name };
+          }
+        ),
         pointSystem: {
           ...(selectedTournament.pointSystem || {}),
           ...(updates?.pointSystem || {}),
@@ -1255,8 +1267,7 @@ export default function App() {
   function getCurrentPointSystem() {
     return {
       winnerPoints: Math.max(0, Number(winnerTeamPoint) || 0),
-      winnerBonusOppScoreLessThan: Math.max(0, Number(winnerBonusOppScoreLessThan) || 0),
-      winnerBonusPoints: Math.max(0, Number(winnerBonusPoint) || 0),
+      winnerBonusRules: getWinnerBonusRules({ winnerBonusRules }),
       loserBonusScoreGreaterThan: Math.max(0, Number(loserBonusScoreGreaterThan) || 0),
       loserBonusPoints: Math.max(0, Number(loserBonusPoint) || 0),
     };
@@ -2605,12 +2616,11 @@ export default function App() {
         }
         if (
           Number(winnerTeamPoint) < 0 ||
-          Number(winnerBonusOppScoreLessThan) < 0 ||
-          Number(winnerBonusPoint) < 0 ||
+          winnerBonusRules.some((rule) => [rule.opponentScoreLessThan, rule.points].some((value) => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0)) ||
           Number(loserBonusScoreGreaterThan) < 0 ||
           Number(loserBonusPoint) < 0
         ) {
-          return 'Point system values cannot be negative.';
+          return 'Point system values must be non-negative numbers.';
         }
       }
       return '';
@@ -2729,8 +2739,7 @@ export default function App() {
     groupGamesBetweenGroups,
     groupLevelPairings,
     winnerTeamPoint,
-    winnerBonusOppScoreLessThan,
-    winnerBonusPoint,
+    winnerBonusRules,
     loserBonusScoreGreaterThan,
     loserBonusPoint,
   ]);
@@ -3069,10 +3078,6 @@ export default function App() {
           setMenuOpen(false);
           setActiveMenu('fixtures');
         }}
-        onTeamPredictions={() => {
-          setMenuOpen(false);
-          setActiveMenu('team-predictions');
-        }}
         onProfile={() => {
           setMenuOpen(false);
           setActiveMenu('profile');
@@ -3234,7 +3239,7 @@ export default function App() {
         ) : activeMenu === 'fixtures' ? (
           <FixturesScreen
             loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
-            onOpenPredictions={() => setActiveMenu('team-predictions')}
+            onOpenPredictions={() => setActiveMenu('predictions')}
             players={playersDbList}
             rosterPlayerIds={teamRosterPlayerIds}
             onOpenPlayer={openPlayerProfile}
@@ -3533,35 +3538,8 @@ export default function App() {
                       />
                     </div>
                     <div />
-                    <div>
-                      <label className="block text-sm mb-1">
-                        Winner Bonus: Opposite Team Score Less Than
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={winnerBonusOppScoreLessThan}
-                        onChange={(e) =>
-                          setWinnerBonusOppScoreLessThan(parseNonNegativeOrEmpty(e.target.value))
-                        }
-                        onBlur={() => {
-                          if (winnerBonusOppScoreLessThan === '') setWinnerBonusOppScoreLessThan(0);
-                        }}
-                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm mb-1">Winner Bonus Point</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={winnerBonusPoint}
-                        onChange={(e) => setWinnerBonusPoint(parseNonNegativeOrEmpty(e.target.value))}
-                        onBlur={() => {
-                          if (winnerBonusPoint === '') setWinnerBonusPoint(0);
-                        }}
-                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
-                      />
+                    <div className="sm:col-span-2">
+                      <WinnerBonusRulesEditor rules={winnerBonusRules} onChange={setWinnerBonusRules} />
                     </div>
                     <div>
                       <label className="block text-sm mb-1">

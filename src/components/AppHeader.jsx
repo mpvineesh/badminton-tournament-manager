@@ -13,7 +13,6 @@ export default function AppHeader({
   onSkillLevel,
   onPredictions,
   onFixtures,
-  onTeamPredictions,
   onProfile,
   onScoreboard,
   onTournaments,
@@ -104,12 +103,6 @@ export default function AppHeader({
                     </button>
                     <button
                       className="app-theme-menu-item w-full text-left px-3 py-2 text-sm border-t"
-                      onClick={onTeamPredictions}
-                    >
-                      Team Match Picks
-                    </button>
-                    <button
-                      className="app-theme-menu-item w-full text-left px-3 py-2 text-sm border-t"
                       onClick={onProfile}
                     >
                       My Profile
@@ -123,7 +116,7 @@ export default function AppHeader({
                       </button>
                     )}
                     <button
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 border-t"
+                      className="app-theme-menu-item w-full text-left px-3 py-2 text-sm"
                       onClick={onTournaments}
                     >
                       Tournaments

@@ -1,3 +1,5 @@
+import { getWinnerBonusRules, winnerBonusForScore } from './pointSystem.js';
+
 // Utility + core tournament logic helpers
 
 /** Return YYYY-MM-DD in local time. */
@@ -55,8 +57,7 @@ export function roundRobin(teamIds) {
  */
 export function computeStandings(pools, teams, matches, pointSystem = {}) {
   const winnerPoints = Number(pointSystem?.winnerPoints ?? 2);
-  const winnerBonusOppScoreLessThan = Number(pointSystem?.winnerBonusOppScoreLessThan ?? NaN);
-  const winnerBonusPoints = Number(pointSystem?.winnerBonusPoints ?? 0);
+  const winnerBonusRules = getWinnerBonusRules(pointSystem);
   const loserBonusScoreGreaterThan = Number(pointSystem?.loserBonusScoreGreaterThan ?? NaN);
   const loserBonusPoints = Number(pointSystem?.loserBonusPoints ?? 0);
 
@@ -88,14 +89,8 @@ export function computeStandings(pools, teams, matches, pointSystem = {}) {
       const aWon = scoreA > scoreB;
       const winnerScore = aWon ? scoreA : scoreB;
       const loserScore = aWon ? scoreB : scoreA;
-      let winnerExtra = 0;
+      const winnerExtra = winnerBonusForScore(winnerBonusRules, loserScore);
       let loserExtra = 0;
-      if (
-        Number.isFinite(winnerBonusOppScoreLessThan) &&
-        loserScore < winnerBonusOppScoreLessThan
-      ) {
-        winnerExtra += Math.max(0, winnerBonusPoints);
-      }
       if (
         Number.isFinite(loserBonusScoreGreaterThan) &&
         loserScore > loserBonusScoreGreaterThan

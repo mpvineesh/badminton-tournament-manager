@@ -1,4 +1,6 @@
 import React from 'react';
+import WinnerBonusRulesEditor from './WinnerBonusRulesEditor.jsx';
+import { getWinnerBonusRules } from '../utils/pointSystem.js';
 
 function Field({ label, value }) {
   return (
@@ -30,11 +32,11 @@ export default function TournamentSettingsScreen({
     membersPerGroup: '',
     groupGamesBetweenGroups: '',
     winnerPoints: 0,
-    winnerBonusOppScoreLessThan: 0,
-    winnerBonusPoints: 0,
+    winnerBonusRules: [],
     loserBonusScoreGreaterThan: 0,
     loserBonusPoints: 0,
   });
+  const [teamNames, setTeamNames] = React.useState({});
   const [localError, setLocalError] = React.useState('');
 
   React.useEffect(() => {
@@ -47,11 +49,18 @@ export default function TournamentSettingsScreen({
       membersPerGroup: String(Number(tournament?.membersPerGroup) || ''),
       groupGamesBetweenGroups: String(Number(tournament?.groupGamesBetweenGroups) || ''),
       winnerPoints: String(Number(pointSystem?.winnerPoints) || 0),
-      winnerBonusOppScoreLessThan: String(Number(pointSystem?.winnerBonusOppScoreLessThan) || 0),
-      winnerBonusPoints: String(Number(pointSystem?.winnerBonusPoints) || 0),
+      winnerBonusRules: getWinnerBonusRules(pointSystem),
       loserBonusScoreGreaterThan: String(Number(pointSystem?.loserBonusScoreGreaterThan) || 0),
       loserBonusPoints: String(Number(pointSystem?.loserBonusPoints) || 0),
     });
+    setTeamNames(
+      Object.fromEntries(
+        (Array.isArray(tournament?.teams) ? tournament.teams : []).map((team) => [
+          team.id,
+          String(team.name || ''),
+        ])
+      )
+    );
     setLocalError('');
   }, [tournament?.id]);
 
@@ -87,6 +96,10 @@ export default function TournamentSettingsScreen({
       setLocalError('Tournament date is required.');
       return;
     }
+    if (teams.some((team) => !String(teamNames[team.id] || '').trim())) {
+      setLocalError('Every team must have a name.');
+      return;
+    }
     setLocalError('');
     await onSave?.({
       name,
@@ -95,10 +108,12 @@ export default function TournamentSettingsScreen({
       numPools: toNonNegative(form.numPools),
       membersPerGroup: toNonNegative(form.membersPerGroup),
       groupGamesBetweenGroups: toNonNegative(form.groupGamesBetweenGroups),
+      teamNames: Object.fromEntries(
+        teams.map((team) => [team.id, String(teamNames[team.id] || '').trim()])
+      ),
       pointSystem: {
         winnerPoints: toNonNegative(form.winnerPoints),
-        winnerBonusOppScoreLessThan: toNonNegative(form.winnerBonusOppScoreLessThan),
-        winnerBonusPoints: toNonNegative(form.winnerBonusPoints),
+        winnerBonusRules: getWinnerBonusRules(form),
         loserBonusScoreGreaterThan: toNonNegative(form.loserBonusScoreGreaterThan),
         loserBonusPoints: toNonNegative(form.loserBonusPoints),
       },
@@ -203,6 +218,43 @@ export default function TournamentSettingsScreen({
         </div>
 
         <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
+          <div className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-200">Team Names</div>
+          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+            These names are used across this tournament, including fixtures, predictions, and standings.
+          </p>
+          {teams.length ? (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {teams.map((team, index) => {
+                const memberNames = (Array.isArray(team?.players) ? team.players : [])
+                  .map((playerId) => players.find((player) => player.id === playerId)?.name)
+                  .filter(Boolean);
+                return (
+                  <label
+                    key={team.id}
+                    className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2"
+                  >
+                    <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                      Team {index + 1}
+                      {memberNames.length > 0 && ` · ${memberNames.join(' & ')}`}
+                    </div>
+                    <input
+                      aria-label={`Team ${index + 1} name`}
+                      className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
+                      value={teamNames[team.id] ?? ''}
+                      onChange={(e) =>
+                        setTeamNames((prev) => ({ ...prev, [team.id]: e.target.value }))
+                      }
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-sm text-slate-500 dark:text-slate-400">No teams in this tournament.</div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
           <div className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Points Rules</div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
@@ -213,26 +265,6 @@ export default function TournamentSettingsScreen({
                 className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
                 value={form.winnerPoints}
                 onChange={(e) => setForm((prev) => ({ ...prev, winnerPoints: e.target.value }))}
-              />
-            </label>
-            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Winner Bonus If Opp &lt;</div>
-              <input
-                type="number"
-                min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
-                value={form.winnerBonusOppScoreLessThan}
-                onChange={(e) => setForm((prev) => ({ ...prev, winnerBonusOppScoreLessThan: e.target.value }))}
-              />
-            </label>
-            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Winner Bonus Points</div>
-              <input
-                type="number"
-                min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
-                value={form.winnerBonusPoints}
-                onChange={(e) => setForm((prev) => ({ ...prev, winnerBonusPoints: e.target.value }))}
               />
             </label>
             <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
@@ -255,6 +287,9 @@ export default function TournamentSettingsScreen({
                 onChange={(e) => setForm((prev) => ({ ...prev, loserBonusPoints: e.target.value }))}
               />
             </label>
+          </div>
+          <div className="mt-4">
+            <WinnerBonusRulesEditor rules={form.winnerBonusRules} onChange={(winnerBonusRules) => setForm((prev) => ({ ...prev, winnerBonusRules }))} />
           </div>
         </div>
 

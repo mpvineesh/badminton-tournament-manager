@@ -13,9 +13,9 @@ const MENU_TO_PATH = {
   'player-stats': '/players/stats',
   profile: '/profile',
   'skill-level': '/skill',
-  predictions: '/tournament-predictions',
+  predictions: '/predictions',
   fixtures: '/fixtures',
-  'team-predictions': '/predictions',
+  'team-predictions': '/team-predictions',
   scoreboard: '/scoreboard',
   tournaments: '/tournaments',
   login: '/login',
@@ -50,8 +50,8 @@ export function pathToNav(pathname) {
       playerStatsId: decodeURIComponent(playerMatch[1]),
     };
   }
-  if (clean === '/team-predictions') {
-    return { activeMenu: 'team-predictions', tournamentView: 'list', selectedTournamentId: null };
+  if (clean === '/tournament-predictions') {
+    return { activeMenu: 'predictions', tournamentView: 'list', selectedTournamentId: null };
   }
   const m = clean.match(/^\/tournament\/([^/]+)(?:\/(settings|matches|points|match))?$/);
   if (m) {
