@@ -37,6 +37,11 @@
   outline-offset: 2px;
 }
 
+.smash-picks .fixtures-back {
+  font-size: 12px;
+  line-height: normal;
+}
+
 .smash-picks-shell {
   width: min(100%, 1160px);
   margin: 0 auto;
