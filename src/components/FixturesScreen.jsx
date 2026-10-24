@@ -100,9 +100,6 @@ export default function FixturesScreen({
             <strong>SMASH<span>PICKS</span></strong>
           </div>
           <div className="fixtures-nav-actions">
-            <a className="fixtures-back" href="/prediction-walkthrough.mp4" target="_blank" rel="noreferrer">
-              Watch guide
-            </a>
             <button type="button" className="fixtures-back" onClick={onOpenPredictions}>
               ← Predictions
             </button>
