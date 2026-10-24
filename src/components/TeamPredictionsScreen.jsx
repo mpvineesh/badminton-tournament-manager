@@ -664,7 +664,6 @@ export default function TeamPredictionsScreen({
             <span>SMASH<span>PICKS</span></span>
           </div>
           <span className="smash-pill">
-            🏸 MORNING BATCH · 2026
             <button type="button" onClick={onOpenFixtures} className="smash-fixtures-link">
               Fixtures
             </button>
