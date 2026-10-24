@@ -60,11 +60,11 @@ const TABS = [
 export default function BottomNav({ activeMenu, onNavigate }) {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 backdrop-blur md:hidden"
+      className="app-theme-bottom-nav fixed inset-x-0 bottom-0 z-30 backdrop-blur md:hidden"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       aria-label="Primary"
     >
-      <div className="mx-auto grid max-w-3xl grid-cols-5">
+      <div className="app-theme-bottom-nav-inner mx-auto grid max-w-3xl grid-cols-5">
         {TABS.map((tab) => {
           const active = tab.match(activeMenu);
           return (
@@ -74,11 +74,11 @@ export default function BottomNav({ activeMenu, onNavigate }) {
               onClick={() => onNavigate(tab.key)}
               aria-current={active ? 'page' : undefined}
               className={`relative flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium transition-colors ${
-                active ? 'text-navy-800' : 'text-slate-400 hover:text-slate-600'
+                active ? 'app-theme-bottom-nav-active' : 'app-theme-bottom-nav-inactive'
               }`}
             >
               {active && (
-                <span className="absolute top-0 h-0.5 w-8 rounded-full bg-gold-500" />
+                <span className="app-theme-bottom-nav-indicator absolute top-0 h-0.5 w-8 rounded-full" />
               )}
               <Icon name={tab.key} className={active ? 'h-6 w-6' : 'h-6 w-6'} />
               <span>{tab.label}</span>

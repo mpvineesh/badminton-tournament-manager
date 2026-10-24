@@ -1,10 +1,11 @@
-// Light/dark theme stored in localStorage and applied as a `dark` class on
-// <html> (Tailwind darkMode: 'class').
+// Theme preference stored in localStorage and applied as a `dark` class on
+// <html> (Tailwind darkMode: 'class'). The club theme defaults to dark.
 const KEY = 'tm_theme';
 
 export function getTheme() {
   try {
-    return localStorage.getItem(KEY) === 'dark' ? 'dark' : 'light';
+    const savedTheme = localStorage.getItem(KEY);
+    return savedTheme === 'light' ? 'light' : 'dark';
   } catch {
     return 'light';
   }

@@ -766,7 +766,12 @@ export default function TeamPredictionsScreen({
           ) : members.length === 0 ? (
             <div className="smash-members-message">No member predictions yet. Be the first to submit your picks.</div>
           ) : (
-            <div className="smash-member-grid">
+            <div
+              className="smash-member-grid"
+              role="region"
+              aria-label="Member predictions"
+              tabIndex={0}
+            >
               {members.map((member) => (
                 <article className="smash-member-card" key={member.id}>
                   <div className="smash-member-name">
@@ -804,7 +809,12 @@ export default function TeamPredictionsScreen({
             ) : adminEntries.length === 0 ? (
               <div className="smash-members-message">No detailed predictions have been submitted.</div>
             ) : (
-              <div className="smash-admin-list">
+              <div
+                className="smash-admin-list"
+                role="region"
+                aria-label="Detailed predictions by member"
+                tabIndex={0}
+              >
                 {adminEntries.map((entry) => {
                   const memberPredictions = (entry.payload?.predictions || [])
                     .map((prediction) => {
@@ -829,7 +839,12 @@ export default function TeamPredictionsScreen({
                         </span>
                         <b>View picks <i aria-hidden="true">⌄</i></b>
                       </summary>
-                      <div className="smash-admin-match-list">
+                      <div
+                        className="smash-admin-match-list"
+                        role="region"
+                        aria-label={`Match picks for ${entry.payload?.predictorName || 'tournament player'}`}
+                        tabIndex={0}
+                      >
                         {memberPredictions.length === 0 ? (
                           <p>No match picks saved.</p>
                         ) : memberPredictions.map(({ fixture, prediction, winnerPlayers }) => (

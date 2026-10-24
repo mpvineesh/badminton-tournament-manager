@@ -1262,7 +1262,7 @@ export async function getTeamMatchPredictionAnalytics() {
   return aggregateTeamMatchPredictionRows(rows);
 }
 
-/** Seed the public aggregate from legacy records when an admin first opens the page. */
+/** Reconcile the public aggregate from saved records when an admin opens the page. */
 export async function initializeTeamMatchPredictionAnalytics() {
   if (!isFirebaseMode()) return getTeamMatchPredictionAnalytics();
 
@@ -1270,14 +1270,9 @@ export async function initializeTeamMatchPredictionAnalytics() {
   await ensureAnonymousAuth();
   const fdb = ensureFirebaseDb('initializeTeamMatchPredictionAnalytics');
   const aggregateRef = doc(fdb, 'team_prediction_aggregates', tournamentId);
-  const current = await getDoc(aggregateRef);
-  if (current.exists()) {
-    const data = current.data();
-    return {
-      submissions: Number(data.submissions) || 0,
-      fixtures: data.fixtures && typeof data.fixtures === 'object' ? data.fixtures : {},
-    };
-  }
+  const baseline = await getDoc(aggregateRef);
+  const baselineExists = baseline.exists();
+  const baselineUpdatedAt = baseline.data()?.updated_at ?? null;
 
   const snap = await getDocs(query(
     collection(fdb, 'predictions'),
@@ -1288,7 +1283,11 @@ export async function initializeTeamMatchPredictionAnalytics() {
   );
   return runTransaction(fdb, async (transaction) => {
     const latest = await transaction.get(aggregateRef);
-    if (latest.exists()) {
+    if (
+      latest.exists() !== baselineExists ||
+      (latest.exists() && latest.data()?.updated_at !== baselineUpdatedAt)
+    ) {
+      if (!latest.exists()) return aggregate;
       const data = latest.data();
       return {
         submissions: Number(data.submissions) || 0,
@@ -1297,7 +1296,7 @@ export async function initializeTeamMatchPredictionAnalytics() {
     }
     const initialized = { ...aggregate, updated_at: new Date().toISOString() };
     transaction.set(aggregateRef, initialized);
-    return aggregate;
+    return initialized;
   });
 }
 

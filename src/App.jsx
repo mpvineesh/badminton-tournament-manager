@@ -2,6 +2,7 @@
 // FILE: src/App.jsx
 // ================================
 import React, { useEffect, useRef, useState } from 'react';
+import './AppTheme.css';
 
 import Card from './components/Card.jsx';
 import SelectPlayer from './components/SelectPlayer.jsx';
@@ -3025,9 +3026,9 @@ export default function App() {
   return (
     <div
       className={`min-h-screen overflow-x-clip ${
-        ['team-predictions', 'fixtures'].includes(activeMenu)
-          ? 'bg-[#071719] text-[#edf7f5]'
-          : 'bg-gradient-to-b from-slate-50 to-navy-50 dark:from-navy-900 dark:to-navy-900 text-slate-900 dark:text-slate-100'
+        ['predictions', 'team-predictions', 'fixtures'].includes(activeMenu)
+          ? ''
+          : 'app-theme'
       }`}
     >
       <Toast toasts={toasts} onDismiss={dismissToast} />
@@ -3095,7 +3096,7 @@ export default function App() {
         className={
           ['team-predictions', 'fixtures'].includes(activeMenu)
             ? 'w-full'
-            : 'max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-32 sm:pb-28'
+            : 'app-theme-main max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-32 sm:pb-28'
         }
       >
         {!['team-predictions', 'fixtures'].includes(activeMenu) && <div ref={messageTopRef} />}
@@ -4371,7 +4372,7 @@ export default function App() {
       </main>
 
       {!['team-predictions', 'fixtures'].includes(activeMenu) && (
-        <footer className="max-w-6xl mx-auto px-3 sm:px-4 py-8 pb-28 sm:py-10 md:pb-10 text-xs text-slate-500 dark:text-slate-400 text-center">
+        <footer className="app-theme-footer max-w-6xl mx-auto px-3 sm:px-4 py-8 pb-28 sm:py-10 md:pb-10 text-xs text-slate-500 dark:text-slate-400 text-center">
           Powered by Whitefeather
         </footer>
       )}

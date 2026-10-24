@@ -315,6 +315,10 @@
 .smash-admin-list {
   display: grid;
   gap: 8px;
+  max-height: 520px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .smash-admin-member {
@@ -329,6 +333,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 58px;
+  box-sizing: border-box;
   padding: 12px 14px;
   cursor: pointer;
   list-style: none;
@@ -368,6 +374,10 @@
 .smash-admin-match-list {
   display: grid;
   gap: 6px;
+  max-height: 580px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   border-top: 1px solid #294746;
   padding: 10px;
 }
@@ -1029,11 +1039,17 @@
 .smash-member-grid {
   display: grid;
   grid-template-columns: 1fr;
+  grid-auto-rows: 68px;
   gap: 7px;
+  max-height: 593px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .smash-member-card {
   display: grid;
+  height: 100%;
   grid-template-columns: minmax(115px, 0.8fr) minmax(0, 1.2fr);
   align-items: center;
   gap: 12px;
