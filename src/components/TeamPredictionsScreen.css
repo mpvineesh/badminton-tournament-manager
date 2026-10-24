@@ -115,13 +115,16 @@
 }
 
 .smash-fixtures-link {
-  border: 1px solid #63816d;
-  border-radius: 18px;
-  padding: 5px 9px;
-  color: var(--smash-lime);
-  background: #17352c;
-  font-size: 10px;
-  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #355452;
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: #dcebe6;
+  background: #102728;
+  font-size: 12px;
+  text-decoration: none;
 }
 
 .smash-hero {
@@ -1458,7 +1461,7 @@
 
   .smash-team-card h3 {
     margin: 5px 0 8px;
-    font-size: 16px;
+    font-size: 17px;
   }
 
   .smash-team-card ul {
@@ -1466,7 +1469,7 @@
   }
 
   .smash-team-card li {
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .smash-match-section-title {
@@ -1498,7 +1501,7 @@
 
   .smash-match-top {
     margin-bottom: 9px;
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .smash-versus {
@@ -1514,7 +1517,7 @@
 
   .smash-side strong {
     margin-bottom: 3px;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .smash-side small {
@@ -1653,11 +1656,11 @@
 
   .smash-fixtures-link {
     padding: 4px 6px;
-    font-size: 9px;
+    font-size: 10px;
   }
 
   .smash-side strong {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .smash-score-choice {
@@ -1711,7 +1714,7 @@
 
   .smash-fixtures-link {
     padding: 3px 5px;
-    font-size: 7px;
+    font-size: 8px;
   }
 
   .smash-primary {
