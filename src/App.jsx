@@ -29,6 +29,7 @@ import TeamPredictionsScreen from './components/TeamPredictionsScreen.jsx';
 import FixturesScreen from './components/FixturesScreen.jsx';
 import {
   buildTeamMatchTournamentPayload,
+  getTournamentRosterPlayerIds,
   TEAM_MATCH_TOURNAMENT_NAME,
 } from './data/teamMatchFixtures.js';
 import { roundRobin, toIsoLocal, computeStandings, isoDateToday } from './utils/tournament.js';
@@ -158,6 +159,7 @@ export default function App() {
   const [tournamentStatus, setTournamentStatus] = useState('Upcoming');
   const [groupAddSelections, setGroupAddSelections] = useState({});
   const [tournamentsList, setTournamentsList] = useState([]);
+  const [teamRosterPlayerIds, setTeamRosterPlayerIds] = useState({});
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState('');
   const [tournamentView, setTournamentView] = useState('list');
@@ -355,6 +357,28 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (activeMenu !== 'fixtures' && activeMenu !== 'team-predictions') return undefined;
+    let active = true;
+    const loadRosterPlayerIds = async () => {
+      try {
+        const rows = tournamentsList.length ? tournamentsList : await listTournaments();
+        const tournament = rows.find(
+          (row) =>
+            String(row?.name || row?.payload?.name || '').trim().toLowerCase() ===
+            TEAM_MATCH_TOURNAMENT_NAME.toLowerCase()
+        );
+        if (active) setTeamRosterPlayerIds(getTournamentRosterPlayerIds(tournament));
+      } catch (error) {
+        console.error('Unable to load team tournament player links.', error);
+      }
+    };
+    void loadRosterPlayerIds();
+    return () => {
+      active = false;
+    };
+  }, [activeMenu, tournamentsList]);
 
   // Fire a foreground notification when one of the logged-in player's matches
   // transitions to Live. Seeds on the first snapshot so we don't alert for
@@ -3203,6 +3227,7 @@ export default function App() {
             busy={predictionSaving}
             onOpenFixtures={() => setActiveMenu('fixtures')}
             players={playersDbList}
+            rosterPlayerIds={teamRosterPlayerIds}
             onOpenPlayer={openPlayerProfile}
           />
         ) : activeMenu === 'fixtures' ? (
@@ -3210,6 +3235,7 @@ export default function App() {
             loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
             onOpenPredictions={() => setActiveMenu('team-predictions')}
             players={playersDbList}
+            rosterPlayerIds={teamRosterPlayerIds}
             onOpenPlayer={openPlayerProfile}
           />
         ) : activeMenu === 'tournaments' ? (

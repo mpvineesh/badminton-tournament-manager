@@ -50,6 +50,7 @@ export default function FixturesScreen({
   onOpenPredictions,
   loadPredictionAnalytics,
   players = [],
+  rosterPlayerIds = {},
   onOpenPlayer,
 }) {
   const [teamId, setTeamId] = useState('all');
@@ -177,7 +178,8 @@ export default function FixturesScreen({
                       <React.Fragment key={position}>
                         {index > 0 && ' & '}
                         <PlayerProfileLink
-                          name={fixture.team1.players[position].toUpperCase()}
+                          name={fixture.team1.players[position]}
+                          playerId={rosterPlayerIds[fixture.team1.players[position]]}
                           players={players}
                           onOpenPlayer={onOpenPlayer}
                           className="fixture-player-link"
@@ -194,7 +196,8 @@ export default function FixturesScreen({
                       <React.Fragment key={position}>
                         {index > 0 && ' & '}
                         <PlayerProfileLink
-                          name={fixture.team2.players[position].toUpperCase()}
+                          name={fixture.team2.players[position]}
+                          playerId={rosterPlayerIds[fixture.team2.players[position]]}
                           players={players}
                           onOpenPlayer={onOpenPlayer}
                           className="fixture-player-link"

@@ -25,9 +25,16 @@ export const FIXTURES = TEAMS.flatMap((team1, team1Index) =>
   )
 ).map((fixture, index) => ({ ...fixture, number: index + 1 }));
 
-export function getFixturePlayers(fixture, team) {
+export function getFixturePlayers(fixture, team, players = [], rosterPlayerIds = {}) {
   return fixture.pairing.players
-    .map((position) => team.players[position].toUpperCase())
+    .map((position) => {
+      const rosterName = team.players[position];
+      const playerId = rosterPlayerIds[rosterName];
+      const matchedPlayer = playerId == null
+        ? null
+        : players.find((player) => String(player?.id) === String(playerId));
+      return String(matchedPlayer?.name || rosterName);
+    })
     .join(' & ');
 }
 
@@ -63,6 +70,26 @@ export function resolveRosterPlayers(players) {
     }
   }
   return { mapping, unmatched, ambiguous };
+}
+
+export function getTournamentRosterPlayerIds(tournament) {
+  const payload = tournament?.payload || tournament || {};
+  const tournamentTeams = Array.isArray(payload.teams) ? payload.teams : [];
+  const playerIds = {};
+
+  for (const team of TEAMS) {
+    const savedTeam = tournamentTeams.find(
+      (candidate) =>
+        candidate?.id === `WF-TEAM-${team.id}` ||
+        String(candidate?.name || '').trim().toLowerCase() === team.name.toLowerCase()
+    );
+    const savedPlayerIds = Array.isArray(savedTeam?.players) ? savedTeam.players : [];
+    team.players.forEach((name, index) => {
+      if (savedPlayerIds[index]) playerIds[name] = String(savedPlayerIds[index]);
+    });
+  }
+
+  return playerIds;
 }
 
 export function buildTeamMatchTournamentPayload(players, createdByMobile = '') {

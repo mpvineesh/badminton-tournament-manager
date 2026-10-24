@@ -1,7 +1,14 @@
 import React from 'react';
 import { normalizeRosterPlayerName } from '../data/teamMatchFixtures.js';
 
-export function findUniquePlayerByName(name, players) {
+export function findUniquePlayerByName(name, players, playerId) {
+  if (playerId != null) {
+    const idMatches = (Array.isArray(players) ? players : []).filter(
+      (player) => String(player?.id) === String(playerId)
+    );
+    if (idMatches.length === 1) return idMatches[0];
+  }
+
   const normalizedName = normalizeRosterPlayerName(name);
   if (!normalizedName) return null;
   const matches = (Array.isArray(players) ? players : []).filter(
@@ -13,11 +20,13 @@ export function findUniquePlayerByName(name, players) {
 export default function PlayerProfileLink({
   name,
   players,
+  playerId,
   onOpenPlayer,
   className = '',
 }) {
-  const player = findUniquePlayerByName(name, players);
-  if (!player || !onOpenPlayer) return name;
+  const player = findUniquePlayerByName(name, players, playerId);
+  const displayName = player?.name || name;
+  if (!player || !onOpenPlayer) return displayName;
 
   return (
     <button
@@ -26,7 +35,7 @@ export default function PlayerProfileLink({
       onClick={() => onOpenPlayer(player)}
       aria-label={`View ${player.name}'s player profile`}
     >
-      {name}
+      {displayName}
     </button>
   );
 }

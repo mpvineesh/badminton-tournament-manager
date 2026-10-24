@@ -202,7 +202,7 @@ function normalizeMobile(value) {
   return /^[6-9]\d{9}$/.test(digits) ? digits : '';
 }
 
-function TeamCard({ team, players, onOpenPlayer }) {
+function TeamCard({ team, players, rosterPlayerIds, onOpenPlayer }) {
   return (
     <article className="smash-team-card">
       <div className="smash-team-number">SQUAD 0{team.id}</div>
@@ -212,7 +212,8 @@ function TeamCard({ team, players, onOpenPlayer }) {
           <li key={player}>
             <b>{String.fromCharCode(65 + index)}</b>
             <PlayerProfileLink
-              name={player.toUpperCase()}
+              name={player}
+              playerId={rosterPlayerIds[player]}
               players={players}
               onOpenPlayer={onOpenPlayer}
               className="smash-player-link"
@@ -224,9 +225,9 @@ function TeamCard({ team, players, onOpenPlayer }) {
   );
 }
 
-function MatchCard({ fixture, pick, onPick, onRange, onToggleScore }) {
-  const team1Players = getFixturePlayers(fixture, fixture.team1);
-  const team2Players = getFixturePlayers(fixture, fixture.team2);
+function MatchCard({ fixture, players, rosterPlayerIds, pick, onPick, onRange, onToggleScore }) {
+  const team1Players = getFixturePlayers(fixture, fixture.team1, players, rosterPlayerIds);
+  const team2Players = getFixturePlayers(fixture, fixture.team2, players, rosterPlayerIds);
   return (
     <article className="smash-match">
       <div className="smash-match-top">
@@ -368,6 +369,7 @@ export default function TeamPredictionsScreen({
   busy = false,
   onOpenFixtures,
   players = [],
+  rosterPlayerIds = {},
   onOpenPlayer,
 }) {
   const [picks, setPicks] = useState({});
@@ -671,11 +673,9 @@ export default function TeamPredictionsScreen({
             <span className="smash-mark">✳</span>
             <span>SMASH<span>PICKS</span></span>
           </div>
-          <span className="smash-pill">
-            <button type="button" onClick={onOpenFixtures} className="smash-fixtures-link">
-              Fixtures
-            </button>
-          </span>
+          <button type="button" onClick={onOpenFixtures} className="smash-fixtures-link">
+            Fixtures
+          </button>
         </nav>
 
         <section className="smash-hero">
@@ -861,6 +861,7 @@ export default function TeamPredictionsScreen({
                 key={team.id}
                 team={team}
                 players={players}
+                rosterPlayerIds={rosterPlayerIds}
                 onOpenPlayer={onOpenPlayer}
               />
             ))}
@@ -882,6 +883,8 @@ export default function TeamPredictionsScreen({
               <MatchCard
                 key={fixture.id}
                 fixture={fixture}
+                players={players}
+                rosterPlayerIds={rosterPlayerIds}
                 pick={picks[fixture.id] || { winner: undefined, range: null, open: false }}
                 onPick={(winner) => updatePick(fixture.id, { winner })}
                 onRange={(range) => updatePick(fixture.id, { range: picks[fixture.id]?.range === range ? null : range })}
