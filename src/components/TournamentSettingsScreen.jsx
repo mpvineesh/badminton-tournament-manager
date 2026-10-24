@@ -1,6 +1,6 @@
 import React from 'react';
-import WinnerBonusRulesEditor from './WinnerBonusRulesEditor.jsx';
-import { getWinnerBonusRules } from '../utils/pointSystem.js';
+import BonusRulesEditor from './BonusRulesEditor.jsx';
+import { getLoserBonusRules, getWinnerBonusRules } from '../utils/pointSystem.js';
 
 function Field({ label, value }) {
   return (
@@ -33,8 +33,7 @@ export default function TournamentSettingsScreen({
     groupGamesBetweenGroups: '',
     winnerPoints: 0,
     winnerBonusRules: [],
-    loserBonusScoreGreaterThan: 0,
-    loserBonusPoints: 0,
+    loserBonusRules: [],
   });
   const [teamNames, setTeamNames] = React.useState({});
   const [localError, setLocalError] = React.useState('');
@@ -50,8 +49,7 @@ export default function TournamentSettingsScreen({
       groupGamesBetweenGroups: String(Number(tournament?.groupGamesBetweenGroups) || ''),
       winnerPoints: String(Number(pointSystem?.winnerPoints) || 0),
       winnerBonusRules: getWinnerBonusRules(pointSystem),
-      loserBonusScoreGreaterThan: String(Number(pointSystem?.loserBonusScoreGreaterThan) || 0),
-      loserBonusPoints: String(Number(pointSystem?.loserBonusPoints) || 0),
+      loserBonusRules: getLoserBonusRules(pointSystem),
     });
     setTeamNames(
       Object.fromEntries(
@@ -114,8 +112,9 @@ export default function TournamentSettingsScreen({
       pointSystem: {
         winnerPoints: toNonNegative(form.winnerPoints),
         winnerBonusRules: getWinnerBonusRules(form),
-        loserBonusScoreGreaterThan: toNonNegative(form.loserBonusScoreGreaterThan),
-        loserBonusPoints: toNonNegative(form.loserBonusPoints),
+        loserBonusRules: getLoserBonusRules(form),
+        loserBonusScoreGreaterThan: getLoserBonusRules(form)[0]?.loserScoreGreaterThan || 0,
+        loserBonusPoints: getLoserBonusRules(form)[0]?.points || 0,
       },
     });
   }
@@ -267,29 +266,21 @@ export default function TournamentSettingsScreen({
                 onChange={(e) => setForm((prev) => ({ ...prev, winnerPoints: e.target.value }))}
               />
             </label>
-            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Loser Bonus If Score &gt;</div>
-              <input
-                type="number"
-                min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
-                value={form.loserBonusScoreGreaterThan}
-                onChange={(e) => setForm((prev) => ({ ...prev, loserBonusScoreGreaterThan: e.target.value }))}
-              />
-            </label>
-            <label className="rounded-lg border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 px-3 py-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Loser Bonus Points</div>
-              <input
-                type="number"
-                min={0}
-                className="mt-0.5 w-full bg-transparent text-sm font-medium text-slate-900 dark:text-slate-100 outline-none"
-                value={form.loserBonusPoints}
-                onChange={(e) => setForm((prev) => ({ ...prev, loserBonusPoints: e.target.value }))}
-              />
-            </label>
           </div>
           <div className="mt-4">
-            <WinnerBonusRulesEditor rules={form.winnerBonusRules} onChange={(winnerBonusRules) => setForm((prev) => ({ ...prev, winnerBonusRules }))} />
+            <BonusRulesEditor rules={form.winnerBonusRules} onChange={(winnerBonusRules) => setForm((prev) => ({ ...prev, winnerBonusRules }))} />
+          </div>
+          <div className="mt-5 border-t border-slate-200 dark:border-navy-700 pt-4">
+            <BonusRulesEditor
+              rules={form.loserBonusRules}
+              onChange={(loserBonusRules) => setForm((prev) => ({ ...prev, loserBonusRules }))}
+              title="Loser bonus rules"
+              thresholdField="loserScoreGreaterThan"
+              thresholdLabel="Losing team score greater than"
+              pointsLabel="Loser bonus points"
+              emptyLabel="No loser bonus rules."
+              description="Only the highest matching bonus is added to the losing team’s points. Their score must be strictly above the threshold."
+            />
           </div>
         </div>
 

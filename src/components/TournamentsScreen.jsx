@@ -1021,7 +1021,8 @@ export default function TournamentsScreen({
                   {pools.length === 0 ? (
                     <div className="text-sm text-slate-500 dark:text-slate-400">No groups available.</div>
                   ) : (
-                    selectedTournament?.mode === 'group' ? (
+                    selectedTournament?.mode === 'group' &&
+                    selectedTournament?.format !== 'team-match' ? (
                       (() => {
                         const groupRows = pools
                           .map((p, idx) => {

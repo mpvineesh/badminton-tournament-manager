@@ -1,5 +1,5 @@
-import WinnerBonusRulesEditor from './components/WinnerBonusRulesEditor.jsx';
-import { getWinnerBonusRules } from './utils/pointSystem.js';
+import BonusRulesEditor from './components/BonusRulesEditor.jsx';
+import { getLoserBonusRules, getWinnerBonusRules } from './utils/pointSystem.js';
 // ================================
 // FILE: src/App.jsx
 // ================================
@@ -156,8 +156,7 @@ export default function App() {
   ]);
   const [winnerTeamPoint, setWinnerTeamPoint] = useState(2);
   const [winnerBonusRules, setWinnerBonusRules] = useState([{ opponentScoreLessThan: 0, points: 0 }]);
-  const [loserBonusScoreGreaterThan, setLoserBonusScoreGreaterThan] = useState(0);
-  const [loserBonusPoint, setLoserBonusPoint] = useState(0);
+  const [loserBonusRules, setLoserBonusRules] = useState([{ loserScoreGreaterThan: 0, points: 0 }]);
   const [tournamentStatus, setTournamentStatus] = useState('Upcoming');
   const [groupAddSelections, setGroupAddSelections] = useState({});
   const [tournamentsList, setTournamentsList] = useState([]);
@@ -1265,11 +1264,14 @@ export default function App() {
   }
 
   function getCurrentPointSystem() {
+    const normalizedLoserRules = getLoserBonusRules({ loserBonusRules });
     return {
       winnerPoints: Math.max(0, Number(winnerTeamPoint) || 0),
       winnerBonusRules: getWinnerBonusRules({ winnerBonusRules }),
-      loserBonusScoreGreaterThan: Math.max(0, Number(loserBonusScoreGreaterThan) || 0),
-      loserBonusPoints: Math.max(0, Number(loserBonusPoint) || 0),
+      loserBonusRules: normalizedLoserRules,
+      // Legacy mirror of the first rule so older clients keep reading a value.
+      loserBonusScoreGreaterThan: normalizedLoserRules[0]?.loserScoreGreaterThan || 0,
+      loserBonusPoints: normalizedLoserRules[0]?.points || 0,
     };
   }
 
@@ -2310,8 +2312,9 @@ export default function App() {
       return;
     }
 
-    const standingsByPool = t.poolStandings || {};
     const pools = t.pools || [];
+    // Rank with the configured point system so bonus rules decide qualification.
+    const standingsByPool = computeStandings(pools, t.teams || [], t.groupMatches || [], getCurrentPointSystem());
     if (pools.length === 0) {
       t.setError('Create groups and complete matches before generating semifinals.');
       return;
@@ -2617,8 +2620,7 @@ export default function App() {
         if (
           Number(winnerTeamPoint) < 0 ||
           winnerBonusRules.some((rule) => [rule.opponentScoreLessThan, rule.points].some((value) => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0)) ||
-          Number(loserBonusScoreGreaterThan) < 0 ||
-          Number(loserBonusPoint) < 0
+          loserBonusRules.some((rule) => [rule.loserScoreGreaterThan, rule.points].some((value) => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0))
         ) {
           return 'Point system values must be non-negative numbers.';
         }
@@ -2740,8 +2742,7 @@ export default function App() {
     groupLevelPairings,
     winnerTeamPoint,
     winnerBonusRules,
-    loserBonusScoreGreaterThan,
-    loserBonusPoint,
+    loserBonusRules,
   ]);
 
   useEffect(() => {
@@ -2900,7 +2901,7 @@ export default function App() {
       return <div className="text-sm text-slate-500 dark:text-slate-400">No groups yet.</div>;
     }
 
-    if (t.mode === 'group') {
+    if (t.mode === 'group' && t.format !== 'team-match') {
       return (
         <div className="hidden sm:block overflow-x-auto rounded-lg border border-slate-200 dark:border-navy-700">
           <table className="w-full text-sm">
@@ -3072,7 +3073,7 @@ export default function App() {
         }}
         onPredictions={() => {
           setMenuOpen(false);
-          setActiveMenu('predictions');
+          setActiveMenu('team-predictions');
         }}
         onFixtures={() => {
           setMenuOpen(false);
@@ -3239,7 +3240,7 @@ export default function App() {
         ) : activeMenu === 'fixtures' ? (
           <FixturesScreen
             loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
-            onOpenPredictions={() => setActiveMenu('predictions')}
+            onOpenPredictions={() => setActiveMenu('team-predictions')}
             players={playersDbList}
             rosterPlayerIds={teamRosterPlayerIds}
             onOpenPlayer={openPlayerProfile}
@@ -3539,36 +3540,18 @@ export default function App() {
                     </div>
                     <div />
                     <div className="sm:col-span-2">
-                      <WinnerBonusRulesEditor rules={winnerBonusRules} onChange={setWinnerBonusRules} />
+                      <BonusRulesEditor rules={winnerBonusRules} onChange={setWinnerBonusRules} />
                     </div>
-                    <div>
-                      <label className="block text-sm mb-1">
-                        Loser Bonus: Score Greater Than
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={loserBonusScoreGreaterThan}
-                        onChange={(e) =>
-                          setLoserBonusScoreGreaterThan(parseNonNegativeOrEmpty(e.target.value))
-                        }
-                        onBlur={() => {
-                          if (loserBonusScoreGreaterThan === '') setLoserBonusScoreGreaterThan(0);
-                        }}
-                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm mb-1">Loser Bonus Point</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={loserBonusPoint}
-                        onChange={(e) => setLoserBonusPoint(parseNonNegativeOrEmpty(e.target.value))}
-                        onBlur={() => {
-                          if (loserBonusPoint === '') setLoserBonusPoint(0);
-                        }}
-                        className="w-full px-3 py-2 border rounded-lg bg-white dark:bg-navy-900 text-slate-900 dark:text-slate-100"
+                    <div className="sm:col-span-2 border-t border-slate-200 dark:border-navy-700 pt-4">
+                      <BonusRulesEditor
+                        rules={loserBonusRules}
+                        onChange={setLoserBonusRules}
+                        title="Loser bonus rules"
+                        thresholdField="loserScoreGreaterThan"
+                        thresholdLabel="Losing team score greater than"
+                        pointsLabel="Loser bonus points"
+                        emptyLabel="No loser bonus rules."
+                        description="Only the highest matching bonus is added to the losing team’s points. Their score must be strictly above the threshold."
                       />
                     </div>
                   </div>
