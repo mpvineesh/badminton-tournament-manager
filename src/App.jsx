@@ -233,12 +233,13 @@ export default function App() {
         .catch((error) => {
           console.error('Unable to restore the signed-in player role.', error);
         });
-      // Prefer a deep-link URL (e.g. /players, /tournament/:id) over the saved
-      // menu, but a plain launch at "/" resumes the last screen.
+      // A plain launch at "/" opens the app home; explicit deep links take priority.
       const pathname = window.location.pathname;
       const atRoot = (pathname.replace(/\/+$/, '') || '/') === '/';
       const urlNav = pathToNav(pathname);
-      if (!atRoot && urlNav && urlNav.activeMenu !== 'login') {
+      if (atRoot) {
+        setActiveMenu('home');
+      } else if (urlNav && urlNav.activeMenu !== 'login') {
         setActiveMenu(urlNav.activeMenu);
         setTournamentView(urlNav.tournamentView || 'list');
         if (urlNav.selectedTournamentId) {
