@@ -1,9 +1,9 @@
 export const TEAMS = [
-  { name: 'Five Fingers', players: ['Sobin', 'Projesh Kumar', 'Gireesh Kumar', 'Sreejesh', 'Satheeshan'] },
-  { name: 'Lion Kings', players: ['Manu', 'Santhosh Kumar', 'Vineesh', 'Sasidharan', 'Arjun'] },
+  { name: 'Five Fingers', players: ['Sobin', 'Prijesh Kumar', 'Gireesh', 'Sreejesh', 'Satheeshan'] },
+  { name: 'Lion Kings', players: ['Manu', 'Santhosh', 'Vineesh', 'Sasidharan', 'Arjun'] },
   { name: 'United 5', players: ['Hareesh', 'Subin', 'Nishanth', 'Sumithran', 'Sam John'] },
-  { name: 'Pentablaze', players: ['Johnson Mathew', 'Jithin', 'Shymon', 'Manoj', 'Unnikrishnan'] },
-  { name: 'Pentagon', players: ['Rajeesh', 'Sonu', 'Raghunath', 'Gino', 'Aneesh Chayoth'] },
+  { name: 'Pentablaze', players: ['Johnson', 'Jithin', 'Shymon', 'Manoj', 'Unnikrishnan'] },
+  { name: 'Pentagon', players: ['Rajeesh', 'Sonu', 'Raghunath', 'Gino', 'Aneesh'] },
 ].map((team, index) => ({ id: index + 1, ...team }));
 export const TEAM_MATCH_TOURNAMENT_NAME = 'Whitefeather Morning Batch 2026';
 
