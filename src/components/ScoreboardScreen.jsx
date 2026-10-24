@@ -90,7 +90,14 @@ function DisplayMode({ tournaments, onExit }) {
 
   return (
     <div className="fixed inset-0 z-[70] flex flex-col bg-gradient-to-br from-navy-800 to-navy-900 text-white">
-      <div className="flex items-center justify-between px-5 py-3">
+      <div
+        className="flex items-center justify-between px-5 py-3"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
+          paddingLeft: 'calc(env(safe-area-inset-left) + 1.25rem)',
+          paddingRight: 'calc(env(safe-area-inset-right) + 1.25rem)',
+        }}
+      >
         <div className="flex items-center gap-2 text-gold-300">
           <span className="text-lg font-bold tracking-wide">Whitefeather · Live</span>
         </div>

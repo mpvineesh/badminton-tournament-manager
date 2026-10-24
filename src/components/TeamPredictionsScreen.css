@@ -577,6 +577,17 @@
   color: var(--smash-text);
 }
 
+.smash-player-link {
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: #64877d;
+  text-underline-offset: 2px;
+}
+
 .smash-match-section-title {
   justify-content: flex-start;
   margin-bottom: 15px;

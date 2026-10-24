@@ -27,6 +27,10 @@ import SkillLevelScreen from './components/SkillLevelScreen.jsx';
 import PredictionsScreen from './components/PredictionsScreen.jsx';
 import TeamPredictionsScreen from './components/TeamPredictionsScreen.jsx';
 import FixturesScreen from './components/FixturesScreen.jsx';
+import {
+  buildTeamMatchTournamentPayload,
+  TEAM_MATCH_TOURNAMENT_NAME,
+} from './data/teamMatchFixtures.js';
 import { roundRobin, toIsoLocal, computeStandings, isoDateToday } from './utils/tournament.js';
 import {
   initAnalytics,
@@ -180,6 +184,8 @@ export default function App() {
   const [predictionError, setPredictionError] = useState('');
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [selectedPlayerStatsId, setSelectedPlayerStatsId] = useState('');
+  const [playerStatsReturnMenu, setPlayerStatsReturnMenu] = useState('players');
+  const [creatingTeamTournament, setCreatingTeamTournament] = useState(false);
   const [savingTournamentSettings, setSavingTournamentSettings] = useState(false);
   const autoSemisInProgressRef = useRef(false);
   const menuRef = useRef(null);
@@ -198,6 +204,22 @@ export default function App() {
     setTimeout(() => dismissToast(id), 3500);
   }
 
+  function openPlayerProfile(player) {
+    if (!player?.id) return;
+    setSelectedPlayerStatsId(String(player.id));
+    setPlayerStatsReturnMenu(activeMenu === 'player-stats' ? playerStatsReturnMenu : activeMenu);
+    setActiveMenu('player-stats');
+  }
+
+  function handlePlayerStatsBack() {
+    const previousMenu = window.history.state?.previousAppNav?.activeMenu;
+    if (previousMenu && previousMenu !== 'player-stats') {
+      window.history.back();
+      return;
+    }
+    setActiveMenu(playerStatsReturnMenu);
+  }
+
   useBackNavigation({
     isLoggedIn,
     activeMenu,
@@ -207,6 +229,8 @@ export default function App() {
     selectedTournament,
     setSelectedTournament,
     loadTournament,
+    selectedPlayerStatsId,
+    setSelectedPlayerStatsId,
   });
 
   useEffect(() => {
@@ -242,6 +266,7 @@ export default function App() {
       } else if (urlNav && urlNav.activeMenu !== 'login') {
         setActiveMenu(urlNav.activeMenu);
         setTournamentView(urlNav.tournamentView || 'list');
+        setSelectedPlayerStatsId(urlNav.playerStatsId || '');
         if (urlNav.selectedTournamentId) {
           loadTournament(urlNav.selectedTournamentId)
             .then((data) => setSelectedTournament(data))
@@ -260,11 +285,20 @@ export default function App() {
       setIsAdminUser(false);
       window.localStorage.removeItem(ACTIVE_MENU_KEY);
       const urlNav = pathToNav(window.location.pathname);
-      setActiveMenu(
-        ['team-predictions', 'fixtures'].includes(urlNav?.activeMenu)
-          ? urlNav.activeMenu
-          : 'login'
-      );
+      if (
+        urlNav?.activeMenu === 'player-stats' &&
+        urlNav.playerStatsId
+      ) {
+        setSelectedPlayerStatsId(urlNav.playerStatsId);
+        setPlayerStatsReturnMenu('team-predictions');
+        setActiveMenu('player-stats');
+      } else {
+        setActiveMenu(
+          ['team-predictions', 'fixtures'].includes(urlNav?.activeMenu)
+            ? urlNav.activeMenu
+            : 'login'
+        );
+      }
     }
   }, []);
 
@@ -1024,6 +1058,35 @@ export default function App() {
     }
   }
 
+  async function createTeamMatchTournament() {
+    if (!isAdminUser || creatingTeamTournament) return;
+    setCreatingTeamTournament(true);
+    setTournamentsError('');
+    try {
+      const existing = (tournamentsList || []).find(
+        (row) => String(row?.name || row?.payload?.name || '').trim().toLowerCase() ===
+          TEAM_MATCH_TOURNAMENT_NAME.toLowerCase()
+      );
+      if (existing?.id) {
+        await openTournamentDetailsFromHome(existing.id);
+        return;
+      }
+      const payload = buildTeamMatchTournamentPayload(
+        playersDbList,
+        getCurrentUserMobileNormalized()
+      );
+      const tournamentId = await saveTournament(payload);
+      if (!tournamentId) throw new Error('Tournament could not be saved.');
+      await refreshTournamentsList();
+      await openTournamentDetailsFromHome(tournamentId);
+    } catch (error) {
+      console.error(error);
+      setTournamentsError(error?.message || 'Unable to create the team tournament.');
+    } finally {
+      setCreatingTeamTournament(false);
+    }
+  }
+
   async function handleTournamentDelete(input) {
     const row =
       typeof input === 'string'
@@ -1436,6 +1499,9 @@ export default function App() {
         ...scoreUpdateMeta,
       };
       next.status = deriveTournamentStatus(next);
+      if (next.mode === 'group') {
+        next.winnerTeamId = getGroupWinnerTeamId(next);
+      }
 
       await updateTournament(next.id, {
         ...next,
@@ -3061,11 +3127,7 @@ export default function App() {
             loading={playersDbLoading}
             error={playersDbError}
             isAdmin={isAdminUser}
-            onOpenStats={(player) => {
-              if (!player?.id) return;
-              setSelectedPlayerStatsId(player.id);
-              setActiveMenu('player-stats');
-            }}
+            onOpenStats={openPlayerProfile}
             onRefresh={refreshPlayersList}
             onAddPlayer={handleAddPlayerToDb}
             onUpdatePlayer={handleUpdatePlayerInDb}
@@ -3081,7 +3143,7 @@ export default function App() {
             tournaments={tournamentsList}
             tournamentsLoading={tournamentsLoading}
             tournamentsError={tournamentsError}
-            onBack={() => setActiveMenu('players')}
+            onBack={handlePlayerStatsBack}
             onOpenTournament={openTournamentDetailsFromHome}
           />
         ) : activeMenu === 'scoreboard' ? (
@@ -3140,11 +3202,15 @@ export default function App() {
             onPredictionIdentity={handleTeamPredictionIdentity}
             busy={predictionSaving}
             onOpenFixtures={() => setActiveMenu('fixtures')}
+            players={playersDbList}
+            onOpenPlayer={openPlayerProfile}
           />
         ) : activeMenu === 'fixtures' ? (
           <FixturesScreen
             loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
             onOpenPredictions={() => setActiveMenu('team-predictions')}
+            players={playersDbList}
+            onOpenPlayer={openPlayerProfile}
           />
         ) : activeMenu === 'tournaments' ? (
           <TournamentsScreen
@@ -3160,6 +3226,8 @@ export default function App() {
             getTournamentCreatorName={getTournamentCreatorName}
             onOpenTournamentDetails={openTournamentDetailsFromHome}
             onOpenTournamentSettings={openTournamentSettings}
+            onCreateTeamTournament={createTeamMatchTournament}
+            creatingTeamTournament={creatingTeamTournament}
             onOpenTournamentFixture={async (id) => {
               await t.loadTournamentById(id);
               setFixtureTournamentId(id);

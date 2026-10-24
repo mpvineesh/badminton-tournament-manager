@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './TeamPredictionsScreen.css';
 import { TEAMS, PAIRINGS, FIXTURES, getFixturePlayers } from '../data/teamMatchFixtures.js';
+import PlayerProfileLink from './PlayerProfileLink.jsx';
 
 const SCORE_RANGES = [
   { id: 'below10', label: 'Below 10', detail: 'Winner +5 · Loser −1' },
@@ -201,7 +202,7 @@ function normalizeMobile(value) {
   return /^[6-9]\d{9}$/.test(digits) ? digits : '';
 }
 
-function TeamCard({ team }) {
+function TeamCard({ team, players, onOpenPlayer }) {
   return (
     <article className="smash-team-card">
       <div className="smash-team-number">SQUAD 0{team.id}</div>
@@ -210,7 +211,12 @@ function TeamCard({ team }) {
         {team.players.map((player, index) => (
           <li key={player}>
             <b>{String.fromCharCode(65 + index)}</b>
-            <span>{player.toUpperCase()}</span>
+            <PlayerProfileLink
+              name={player.toUpperCase()}
+              players={players}
+              onOpenPlayer={onOpenPlayer}
+              className="smash-player-link"
+            />
           </li>
         ))}
       </ul>
@@ -361,6 +367,8 @@ export default function TeamPredictionsScreen({
   onPredictionIdentity,
   busy = false,
   onOpenFixtures,
+  players = [],
+  onOpenPlayer,
 }) {
   const [picks, setPicks] = useState({});
   const [identityDialogOpen, setIdentityDialogOpen] = useState(!authenticatedMobile);
@@ -848,7 +856,14 @@ export default function TeamPredictionsScreen({
             <span className="smash-muted">A → E player tiers</span>
           </div>
           <div className="smash-team-grid">
-            {TEAMS.map((team) => <TeamCard key={team.id} team={team} />)}
+            {TEAMS.map((team) => (
+              <TeamCard
+                key={team.id}
+                team={team}
+                players={players}
+                onOpenPlayer={onOpenPlayer}
+              />
+            ))}
           </div>
         </section>
 

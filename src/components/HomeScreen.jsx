@@ -29,6 +29,17 @@ function getWinnerForCompletedTournament(row) {
       payload?.groupMatches || [],
       payload?.pointSystem || {}
     );
+    if (payload?.format === 'team-match' && payload?.pools?.length === 1) {
+      const winnerId = standings[payload.pools[0].id]?.[0]?.teamId;
+      const winnerTeam = teamsById[winnerId] || null;
+      if (!winnerTeam) return null;
+      const playersById = Object.fromEntries((payload?.players || []).map((p) => [p.id, p]));
+      return {
+        name: winnerTeam.name,
+        members: (winnerTeam.players || []).map((id) => playersById[id]?.name || '').filter(Boolean),
+        mode: 'group',
+      };
+    }
     const rankedGroups = (payload?.pools || [])
       .map((pool) => {
         const rows = standings[pool.id] || [];

@@ -232,6 +232,18 @@
   overflow-wrap: anywhere;
 }
 
+.fixture-player-link {
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: none;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: #64877d;
+  text-underline-offset: 2px;
+}
+
 .fixture-vs {
   color: #779892;
   font-size: 10px;

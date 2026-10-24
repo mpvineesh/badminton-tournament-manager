@@ -22,10 +22,13 @@ const MENU_TO_PATH = {
 };
 
 const keyOf = (nav) =>
-  `${nav.activeMenu}|${nav.tournamentView || 'list'}|${nav.selectedTournamentId || ''}`;
+  `${nav.activeMenu}|${nav.tournamentView || 'list'}|${nav.selectedTournamentId || ''}|${nav.playerStatsId || ''}`;
 
 export function navToPath(nav) {
   const tid = nav.selectedTournamentId;
+  if (nav.activeMenu === 'player-stats' && nav.playerStatsId) {
+    return `/player/${encodeURIComponent(nav.playerStatsId)}`;
+  }
   if (nav.activeMenu === 'tournament' && tid) return `/tournament/${tid}`;
   if (nav.activeMenu === 'tournament-settings' && tid) return `/tournament/${tid}/settings`;
   if (nav.activeMenu === 'tournaments' && tid) {
@@ -38,6 +41,15 @@ export function navToPath(nav) {
 
 export function pathToNav(pathname) {
   const clean = (pathname || '/').replace(/\/+$/, '') || '/';
+  const playerMatch = clean.match(/^\/player\/([^/]+)$/);
+  if (playerMatch) {
+    return {
+      activeMenu: 'player-stats',
+      tournamentView: 'list',
+      selectedTournamentId: null,
+      playerStatsId: decodeURIComponent(playerMatch[1]),
+    };
+  }
   if (clean === '/team-predictions') {
     return { activeMenu: 'team-predictions', tournamentView: 'list', selectedTournamentId: null };
   }
@@ -69,7 +81,9 @@ export function useBackNavigation({
   tournamentView,
   setTournamentView,
   selectedTournament,
+  selectedPlayerStatsId,
   setSelectedTournament,
+  setSelectedPlayerStatsId,
   loadTournament,
 }) {
   const restoringRef = useRef(false);
@@ -81,13 +95,15 @@ export function useBackNavigation({
     activeMenu,
     tournamentView,
     selectedTournamentId: selectedTournament?.id || null,
+    playerStatsId: selectedPlayerStatsId || null,
   };
 
   // Reflect screen state into history. Coalesced via a microtask timer so a
   // multi-setState navigation (e.g. set tournament + set menu) produces one
   // history entry, not several.
   useEffect(() => {
-    if (!isLoggedIn) return undefined;
+    const publicMenus = ['team-predictions', 'fixtures', 'player-stats'];
+    if (!isLoggedIn && !publicMenus.includes(activeMenu)) return undefined;
     if (restoringRef.current) {
       restoringRef.current = false;
       lastKeyRef.current = keyOf(navRef.current);
@@ -99,7 +115,10 @@ export function useBackNavigation({
       if (lastKeyRef.current === key) return;
       lastKeyRef.current = key;
       const path = navToPath(nav);
-      const state = { appNav: nav };
+      const state = {
+        appNav: nav,
+        previousAppNav: window.history.state?.appNav || null,
+      };
       if (!initedRef.current) {
         initedRef.current = true;
         window.history.replaceState(state, '', path);
@@ -108,13 +127,14 @@ export function useBackNavigation({
       }
     }, 0);
     return () => clearTimeout(timer);
-  }, [isLoggedIn, activeMenu, tournamentView, selectedTournament]);
+  }, [isLoggedIn, activeMenu, tournamentView, selectedTournament, selectedPlayerStatsId]);
 
   // Browser back/forward -> restore the recorded screen state.
   useEffect(() => {
     async function onPop(event) {
       const nav = event.state?.appNav;
-      if (!nav || !isLoggedIn) return;
+      const publicMenus = ['team-predictions', 'fixtures', 'player-stats'];
+      if (!nav || (!isLoggedIn && !publicMenus.includes(nav.activeMenu))) return;
       const tid = nav.selectedTournamentId || null;
       const needsTournament =
         tid && ['tournament', 'tournament-settings', 'tournaments'].includes(nav.activeMenu);
@@ -132,6 +152,7 @@ export function useBackNavigation({
       else if (!tid) setSelectedTournament(null);
       setTournamentView(nav.tournamentView || 'list');
       setActiveMenu(nav.activeMenu);
+      setSelectedPlayerStatsId(nav.playerStatsId || '');
     }
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);

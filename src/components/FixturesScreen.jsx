@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FIXTURES, TEAMS, getFixturePlayers } from '../data/teamMatchFixtures.js';
+import { FIXTURES, TEAMS } from '../data/teamMatchFixtures.js';
+import PlayerProfileLink from './PlayerProfileLink.jsx';
 import './FixturesScreen.css';
 
 function FixturePrediction({ fixture, stats, loading, error, compact = false }) {
@@ -48,6 +49,8 @@ function FixturePrediction({ fixture, stats, loading, error, compact = false }) 
 export default function FixturesScreen({
   onOpenPredictions,
   loadPredictionAnalytics,
+  players = [],
+  onOpenPlayer,
 }) {
   const [teamId, setTeamId] = useState('all');
   const [view, setView] = useState('cards');
@@ -169,12 +172,36 @@ export default function FixturesScreen({
               <div className="fixture-teams">
                 <div className="fixture-team">
                   <span>{fixture.team1.name}</span>
-                  <strong>{getFixturePlayers(fixture, fixture.team1)}</strong>
+                  <strong>
+                    {fixture.pairing.players.map((position, index) => (
+                      <React.Fragment key={position}>
+                        {index > 0 && ' & '}
+                        <PlayerProfileLink
+                          name={fixture.team1.players[position].toUpperCase()}
+                          players={players}
+                          onOpenPlayer={onOpenPlayer}
+                          className="fixture-player-link"
+                        />
+                      </React.Fragment>
+                    ))}
+                  </strong>
                 </div>
                 <span className="fixture-vs">VS</span>
                 <div className="fixture-team">
                   <span>{fixture.team2.name}</span>
-                  <strong>{getFixturePlayers(fixture, fixture.team2)}</strong>
+                  <strong>
+                    {fixture.pairing.players.map((position, index) => (
+                      <React.Fragment key={position}>
+                        {index > 0 && ' & '}
+                        <PlayerProfileLink
+                          name={fixture.team2.players[position].toUpperCase()}
+                          players={players}
+                          onOpenPlayer={onOpenPlayer}
+                          className="fixture-player-link"
+                        />
+                      </React.Fragment>
+                    ))}
+                  </strong>
                 </div>
               </div>
               <FixturePrediction

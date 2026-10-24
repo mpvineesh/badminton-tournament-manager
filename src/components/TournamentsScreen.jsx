@@ -43,6 +43,8 @@ export default function TournamentsScreen({
   onOpenTournamentDetails,
   onOpenTournamentSettings,
   onOpenTournamentFixture,
+  onCreateTeamTournament,
+  creatingTeamTournament = false,
   handleTournamentDelete,
   openTournamentLiveView,
   setTournamentView,
@@ -126,6 +128,10 @@ export default function TournamentsScreen({
       const groupMatches = payload?.groupMatches || [];
       if (pools.length === 0 || teams.length === 0 || groupMatches.length === 0) return '-';
       const standings = computeStandings(pools, teams, groupMatches, payload?.pointSystem || {});
+      if (payload?.format === 'team-match' && pools.length === 1) {
+        const winnerId = standings[pools[0].id]?.[0]?.teamId;
+        return teams.find((team) => team.id === winnerId)?.name || '-';
+      }
       const rankedGroups = pools
         .map((p) => {
           const rows = standings[p.id] || [];
@@ -382,12 +388,23 @@ export default function TournamentsScreen({
           <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
               <div className="font-semibold">All Tournaments</div>
-              <button
-                className="px-3 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
-                onClick={refreshTournamentsList}
-              >
-                Refresh
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {isAdminUser && (
+                  <button
+                    className="px-3 py-1.5 rounded-lg border border-navy-300 bg-navy-50 text-navy-800 hover:bg-navy-100 text-sm disabled:opacity-50"
+                    onClick={onCreateTeamTournament}
+                    disabled={creatingTeamTournament}
+                  >
+                    {creatingTeamTournament ? 'Creating…' : 'Create team tournament'}
+                  </button>
+                )}
+                <button
+                  className="px-3 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
+                  onClick={refreshTournamentsList}
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
             {tournamentsLoading ? (
               <div className="text-sm text-slate-500 dark:text-slate-400">Loading tournaments...</div>

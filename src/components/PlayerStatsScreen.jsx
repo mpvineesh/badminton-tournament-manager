@@ -124,9 +124,24 @@ export default function PlayerStatsScreen({
 
         return matches
           .map((match) => {
-            const side = playerTeamIds.includes(match?.teamAId)
+            const explicitPlayersA = Array.isArray(match?.teamAPlayerIds)
+              ? match.teamAPlayerIds
+              : [];
+            const explicitPlayersB = Array.isArray(match?.teamBPlayerIds)
+              ? match.teamBPlayerIds
+              : [];
+            const hasExplicitPlayers = explicitPlayersA.length > 0 || explicitPlayersB.length > 0;
+            const playerOnA = explicitPlayersA.some((id) => candidatePlayerIds.has(id));
+            const playerOnB = explicitPlayersB.some((id) => candidatePlayerIds.has(id));
+            const side = playerOnA
               ? 'A'
-              : (playerTeamIds.includes(match?.teamBId) ? 'B' : null);
+              : playerOnB
+                ? 'B'
+                : hasExplicitPlayers
+                  ? null
+                  : playerTeamIds.includes(match?.teamAId)
+                    ? 'A'
+                    : (playerTeamIds.includes(match?.teamBId) ? 'B' : null);
             if (!side) return null;
 
             const ownTeamId = side === 'A' ? match.teamAId : match.teamBId;
@@ -141,12 +156,18 @@ export default function PlayerStatsScreen({
             const lost = completed && match?.winnerTeamId && match.winnerTeamId !== ownTeamId;
             const when = normalizeWhen(match?.when, payload?.eventDate);
 
-            const ownTeamPlayers = Array.isArray(ownTeam?.players)
-              ? ownTeam.players
-              : (Array.isArray(ownTeam?.playerIds) ? ownTeam.playerIds : []);
-            const opponentTeamPlayers = Array.isArray(opponentTeam?.players)
-              ? opponentTeam.players
-              : (Array.isArray(opponentTeam?.playerIds) ? opponentTeam.playerIds : []);
+            const ownMatchPlayers = side === 'A' ? explicitPlayersA : explicitPlayersB;
+            const opponentMatchPlayers = side === 'A' ? explicitPlayersB : explicitPlayersA;
+            const ownTeamPlayers = ownMatchPlayers.length > 0
+              ? ownMatchPlayers
+              : (Array.isArray(ownTeam?.players)
+                ? ownTeam.players
+                : (Array.isArray(ownTeam?.playerIds) ? ownTeam.playerIds : []));
+            const opponentTeamPlayers = opponentMatchPlayers.length > 0
+              ? opponentMatchPlayers
+              : (Array.isArray(opponentTeam?.players)
+                ? opponentTeam.players
+                : (Array.isArray(opponentTeam?.playerIds) ? opponentTeam.playerIds : []));
 
             const partnerNames = ownTeamPlayers
               .filter((id) => !candidatePlayerIds.has(id))
