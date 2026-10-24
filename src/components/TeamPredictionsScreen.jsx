@@ -673,7 +673,7 @@ export default function TeamPredictionsScreen({
             <span className="smash-mark">✳</span>
             <span>SMASH<span>PICKS</span></span>
           </div>
-          <button type="button" onClick={onOpenFixtures} className="smash-fixtures-link">
+          <button type="button" onClick={onOpenFixtures} className="fixtures-back">
             Fixtures
           </button>
         </nav>
