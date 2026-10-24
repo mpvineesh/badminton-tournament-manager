@@ -355,6 +355,7 @@
 
   .fixtures-tools {
     align-items: center;
+    justify-content: space-between;
   }
 
   .fixtures-filter {
