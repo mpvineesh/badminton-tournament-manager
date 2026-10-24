@@ -147,7 +147,9 @@ export default function FixturesScreen({
           <strong>{visibleFixtures.length}</strong>
           <span>
             {visibleFixtures.length === 1 ? 'match' : 'matches'}
-            {teamId !== 'all' ? ` for Team ${teamId}` : ' across all teams'}
+            {teamId !== 'all'
+              ? ` for ${TEAMS.find((team) => team.id === Number(teamId))?.name}`
+              : ' across all teams'}
           </span>
         </div>
         {analyticsError && (

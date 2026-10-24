@@ -1,10 +1,10 @@
 export const TEAMS = [
-  ['Sobin', 'Prijesh', 'Gireesh', 'Sreejesh', 'Satheesh'],
-  ['Manu', 'Santhosh', 'Vineesh', 'Sasidharan', 'Arjun'],
-  ['Hareesh', 'Subin', 'Nishanth', 'Sumithran', 'Sam'],
-  ['Johnson', 'Jithin', 'Shymon', 'Manoj Mash', 'Unni'],
-  ['Rajeesh', 'Sonu', 'Raghu', 'Gino', 'Aneesh'],
-].map((players, index) => ({ id: index + 1, name: `Team ${index + 1}`, players }));
+  { name: 'Five Fingers', players: ['Sobin', 'Prijesh', 'Gireesh', 'Sreejesh', 'Satheesh'] },
+  { name: 'Lion Kings', players: ['Manu', 'Santhosh', 'Vineesh', 'Sasidharan', 'Arjun'] },
+  { name: 'United 5', players: ['Hareesh', 'Subin', 'Nishanth', 'Sumithran', 'Sam'] },
+  { name: 'Pentablaze', players: ['Johnson', 'Jithin', 'Shymon', 'Manoj Mash', 'Unni'] },
+  { name: 'Pentagon', players: ['Rajeesh', 'Sonu', 'Raghu', 'Gino', 'Aneesh'] },
+].map((team, index) => ({ id: index + 1, ...team }));
 
 export const PAIRINGS = [
   { id: 'AB', players: [0, 1] },
