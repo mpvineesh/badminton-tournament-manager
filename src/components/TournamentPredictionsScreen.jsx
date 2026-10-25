@@ -24,6 +24,7 @@ import {
 // once a match result is recorded, and every save is keyed by tournament id.
 
 const EMPTY_PICK = { winner: undefined, range: null, open: false };
+const MEMBER_PREVIEW_COUNT = 8;
 
 function formatPredictionDate(value) {
   if (!value) return 'unknown';
@@ -246,6 +247,7 @@ export default function TournamentPredictionsScreen({
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState('');
   const [myEntryId, setMyEntryId] = useState('');
+  const [showAllMembers, setShowAllMembers] = useState(false);
   const restoredMobileRef = useRef('');
 
   // Picks on finished matches are replaced by the real result everywhere the
@@ -762,8 +764,9 @@ export default function TournamentPredictionsScreen({
               ) : members.length === 0 ? (
                 <div className="smash-members-message">No member predictions yet. Be the first to submit your picks.</div>
               ) : (
-                <div className="smash-member-grid" role="region" aria-label="Member predictions" tabIndex={0}>
-                  {members.map((member) => (
+                <>
+                <div className="smash-member-grid" aria-label="Member predictions">
+                  {(showAllMembers ? members : members.slice(0, MEMBER_PREVIEW_COUNT)).map((member) => (
                     <article className="smash-member-card" key={member.id}>
                       <div className="smash-member-name">
                         <span className="smash-member-avatar" aria-hidden="true">
@@ -781,6 +784,14 @@ export default function TournamentPredictionsScreen({
                     </article>
                   ))}
                 </div>
+                {members.length > MEMBER_PREVIEW_COUNT && (
+                  <div className="smash-member-more">
+                    <button type="button" className="smash-mini-button" onClick={() => setShowAllMembers((value) => !value)}>
+                      {showAllMembers ? 'Show fewer' : `Show all ${members.length} members`}
+                    </button>
+                  </div>
+                )}
+                </>
               )}
             </section>
 
@@ -800,7 +811,7 @@ export default function TournamentPredictionsScreen({
                 ) : adminEntries.length === 0 ? (
                   <div className="smash-members-message">No detailed predictions have been submitted.</div>
                 ) : (
-                  <div className="smash-admin-list" role="region" aria-label="Detailed predictions by member" tabIndex={0}>
+                  <div className="smash-admin-list" aria-label="Detailed predictions by member">
                     {adminEntries.map((entry) => {
                       const memberPicks = picksFromPayload(model, entry.payload);
                       const memberGrade = gradePicks(model, memberPicks);
@@ -833,9 +844,7 @@ export default function TournamentPredictionsScreen({
                           </summary>
                           <div
                             className="smash-admin-match-list"
-                            role="region"
-                            aria-label={`Match picks for ${entry.payload?.predictorName || 'tournament player'}`}
-                            tabIndex={0}
+                                                        aria-label={`Match picks for ${entry.payload?.predictorName || 'tournament player'}`}
                           >
                             {memberPredictions.length === 0 ? (
                               <p>No match picks saved.</p>

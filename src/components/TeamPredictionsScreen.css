@@ -316,10 +316,6 @@
 .smash-admin-list {
   display: grid;
   gap: 8px;
-  max-height: 520px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
 }
 
 .smash-admin-member {
@@ -375,10 +371,6 @@
 .smash-admin-match-list {
   display: grid;
   gap: 6px;
-  max-height: 580px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   border-top: 1px solid #294746;
   padding: 10px;
 }
@@ -1042,10 +1034,6 @@
   grid-template-columns: 1fr;
   grid-auto-rows: 68px;
   gap: 7px;
-  max-height: 593px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
 }
 
 .smash-member-card {
@@ -1836,4 +1824,12 @@
   margin-top: 8px;
   color: #ffb86b;
   font-size: 11px;
+}
+
+/* Lists no longer scroll inside the page (nested scrolling trapped touch
+   scrolling on phones); long lists collapse behind a "Show all" button. */
+.smash-member-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
 }

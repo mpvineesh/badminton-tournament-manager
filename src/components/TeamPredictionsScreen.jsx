@@ -12,6 +12,7 @@ const SCORE_RANGES = [
 ];
 const TOTAL_PLAYERS = TEAMS.reduce((total, team) => total + team.players.length, 0);
 const SIMULATIONS = 6000;
+const MEMBER_PREVIEW_COUNT = 8;
 const MIN_CORRECT_FOR_WIN = 31;
 
 function calculateForecast(picks) {
@@ -401,6 +402,7 @@ export default function TeamPredictionsScreen({
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState('');
   const [myEntryId, setMyEntryId] = useState('');
+  const [showAllMembers, setShowAllMembers] = useState(false);
   const [identityDialogOpen, setIdentityDialogOpen] = useState(!authenticatedMobile);
   const [identityBusy, setIdentityBusy] = useState(false);
   const [identityName, setIdentityName] = useState('');
@@ -927,13 +929,9 @@ export default function TeamPredictionsScreen({
           ) : members.length === 0 ? (
             <div className="smash-members-message">No member predictions yet. Be the first to submit your picks.</div>
           ) : (
-            <div
-              className="smash-member-grid"
-              role="region"
-              aria-label="Member predictions"
-              tabIndex={0}
-            >
-              {members.map((member) => (
+            <>
+            <div className="smash-member-grid" aria-label="Member predictions">
+              {(showAllMembers ? members : members.slice(0, MEMBER_PREVIEW_COUNT)).map((member) => (
                 <article className="smash-member-card" key={member.id}>
                   <div className="smash-member-name">
                     <span className="smash-member-avatar" aria-hidden="true">
@@ -951,6 +949,14 @@ export default function TeamPredictionsScreen({
                 </article>
               ))}
             </div>
+            {members.length > MEMBER_PREVIEW_COUNT && (
+              <div className="smash-member-more">
+                <button type="button" className="smash-mini-button" onClick={() => setShowAllMembers((value) => !value)}>
+                  {showAllMembers ? 'Show fewer' : `Show all ${members.length} members`}
+                </button>
+              </div>
+            )}
+            </>
           )}
         </section>
 
@@ -972,9 +978,7 @@ export default function TeamPredictionsScreen({
             ) : (
               <div
                 className="smash-admin-list"
-                role="region"
                 aria-label="Detailed predictions by member"
-                tabIndex={0}
               >
                 {adminEntries.map((entry) => {
                   const memberPredictions = (entry.payload?.predictions || [])
@@ -1002,9 +1006,7 @@ export default function TeamPredictionsScreen({
                       </summary>
                       <div
                         className="smash-admin-match-list"
-                        role="region"
-                        aria-label={`Match picks for ${entry.payload?.predictorName || 'tournament player'}`}
-                        tabIndex={0}
+                                                aria-label={`Match picks for ${entry.payload?.predictorName || 'tournament player'}`}
                       >
                         {memberPredictions.length === 0 ? (
                           <p>No match picks saved.</p>
