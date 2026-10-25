@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import './TeamPredictionsScreen.css';
 import { TEAMS, PAIRINGS, FIXTURES, getFixturePlayers } from '../data/teamMatchFixtures.js';
 import { LEGACY_EVENT_DATE, legacyResultPicks, legacyResultsSignature } from '../utils/legacyPredictionResults.js';
-import { isLeaderboardOpen } from '../utils/tournamentPredictions.js';
+import { isLeaderboardOpen, isSubmissionOpen, submissionDeadlineLabel } from '../utils/tournamentPredictions.js';
 import PlayerProfileLink from './PlayerProfileLink.jsx';
 
 const SCORE_RANGES = [
@@ -227,7 +227,7 @@ function TeamCard({ team, players, rosterPlayerIds, onOpenPlayer }) {
   );
 }
 
-function MatchCard({ fixture, players, rosterPlayerIds, pick, userPick, locked = false, onPick, onRange, onToggleScore }) {
+function MatchCard({ fixture, players, rosterPlayerIds, pick, userPick, locked = false, disabled = false, onPick, onRange, onToggleScore }) {
   const team1Players = getFixturePlayers(fixture, fixture.team1, players, rosterPlayerIds);
   const team2Players = getFixturePlayers(fixture, fixture.team2, players, rosterPlayerIds);
   const result = locked ? pick.result : null;
@@ -248,7 +248,7 @@ function MatchCard({ fixture, players, rosterPlayerIds, pick, userPick, locked =
           className={`smash-side ${pick.winner === 0 ? 'selected' : ''}`}
           onClick={() => onPick(0)}
           aria-pressed={pick.winner === 0}
-          disabled={locked}
+          disabled={locked || disabled}
         >
           <strong>{team1Players}</strong>
           {pick.winner === 0 && <small>{locked ? '✓ WON' : '✓ WINNER'}</small>}
@@ -259,7 +259,7 @@ function MatchCard({ fixture, players, rosterPlayerIds, pick, userPick, locked =
           className={`smash-side ${pick.winner === 1 ? 'selected' : ''}`}
           onClick={() => onPick(1)}
           aria-pressed={pick.winner === 1}
-          disabled={locked}
+          disabled={locked || disabled}
         >
           <strong>{team2Players}</strong>
           {pick.winner === 1 && <small>{locked ? '✓ WON' : '✓ WINNER'}</small>}
@@ -275,7 +275,7 @@ function MatchCard({ fixture, players, rosterPlayerIds, pick, userPick, locked =
           )}
         </div>
       )}
-      {!locked && (
+      {!locked && !disabled && (
       <button
         type="button"
         className="smash-score-toggle"
@@ -285,7 +285,7 @@ function MatchCard({ fixture, players, rosterPlayerIds, pick, userPick, locked =
         {pick.open ? '− Hide score' : '＋ Predict score'}
       </button>
       )}
-      {!locked && pick.open && (
+      {!locked && !disabled && pick.open && (
         <>
           <div className="smash-score-choice-label">Losing team's score range (optional)</div>
           <div className="smash-score-choices">
@@ -436,6 +436,9 @@ export default function TeamPredictionsScreen({
     return { graded, correct };
   }, [picks, resultPicks]);
   const forecast = useMemo(() => calculateForecast(combinedPicks), [combinedPicks]);
+  // Entries freeze at the end of the day before the tournament.
+  const submissionOpen = isSubmissionOpen(LEGACY_EVENT_DATE);
+  const deadlineLabel = submissionDeadlineLabel(LEGACY_EVENT_DATE);
   const communityOdds = useMemo(() => calculateCommunityOdds(analytics), [analytics]);
   const members = useMemo(
     () =>
@@ -569,6 +572,7 @@ export default function TeamPredictionsScreen({
   }, [isAdmin, loadPredictionDetails]);
 
   function updatePick(fixtureId, changes) {
+    if (!submissionOpen) return;
     setPicks((current) => ({
       ...current,
       [fixtureId]: { winner: undefined, range: null, open: false, ...current[fixtureId], ...changes },
@@ -666,6 +670,10 @@ export default function TeamPredictionsScreen({
     if (!identityMobile || !identityName) {
       setFormError('Enter your name and mobile number to continue.');
       setIdentityDialogOpen(true);
+      return;
+    }
+    if (!submissionOpen) {
+      setFormError(`Submissions closed on ${deadlineLabel}. Picks can no longer be changed.`);
       return;
     }
     if (userPickCount === 0) {
@@ -768,6 +776,7 @@ export default function TeamPredictionsScreen({
             <h1>PREDICT &amp;<br /><span>WIN PRIZES.</span></h1>
             <p className="smash-muted">
               Correctly predict more than 30 games to qualify. One winner will be selected from everyone who qualifies. That means at least {MIN_CORRECT_FOR_WIN} correct picks.
+              {' '}<strong>{submissionOpen ? 'Last date for submissions:' : 'Submissions closed on'} {deadlineLabel}.</strong>
             </p>
           </div>
           <div className="smash-hero-card">
@@ -1046,6 +1055,11 @@ export default function TeamPredictionsScreen({
             Fixtures are generated from the team pairings in the tournament rules: A+B, A+C, B+D and C+E. Each team matchup includes all four pairings. Losing-team score ranges are optional.
             {completedCount > 0 ? ` ${completedCount} ${completedCount === 1 ? 'match has' : 'matches have'} finished and can no longer be changed.` : ''}
           </p>
+          <p className="smash-notice">
+            {submissionOpen
+              ? `Submit or update your picks by ${deadlineLabel}. No submissions are accepted after that.`
+              : `Submissions closed on ${deadlineLabel}. Your saved picks are final.`}
+          </p>
           <div className="smash-matches">
             {FIXTURES.length ? FIXTURES.map((fixture) => (
               <MatchCard
@@ -1054,6 +1068,7 @@ export default function TeamPredictionsScreen({
                 players={players}
                 rosterPlayerIds={rosterPlayerIds}
                 locked={Boolean(resultPicks[fixture.id])}
+                disabled={!submissionOpen}
                 userPick={picks[fixture.id]}
                 pick={resultPicks[fixture.id] || picks[fixture.id] || { winner: undefined, range: null, open: false }}
                 onPick={(winner) => updatePick(fixture.id, { winner })}
@@ -1073,7 +1088,9 @@ export default function TeamPredictionsScreen({
               <h2 id="forecast-title">Who takes the trophy?</h2>
               <p className="smash-muted">Projected standings and title chances based on your match predictions.</p>
             </div>
-            <button className="smash-mini-button" type="button" onClick={applySamplePicks}>Try sample picks</button>
+            {submissionOpen && (
+              <button className="smash-mini-button" type="button" onClick={applySamplePicks}>Try sample picks</button>
+            )}
           </div>
           <div className="smash-forecast-grid">
             <div className="smash-forecast-table">
@@ -1166,10 +1183,10 @@ export default function TeamPredictionsScreen({
             className="smash-primary"
             type="button"
             id="submit"
-            disabled={busy || identityBusy || userPickCount === 0}
+            disabled={busy || identityBusy || userPickCount === 0 || !submissionOpen}
             onClick={submitPredictions}
           >
-            {busy ? 'Saving…' : submitted ? 'Update predictions →' : 'Submit predictions →'}
+            {!submissionOpen ? 'Submissions closed' : busy ? 'Saving…' : submitted ? 'Update predictions →' : 'Submit predictions →'}
           </button>
         </div>
       </div>

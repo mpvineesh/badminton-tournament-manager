@@ -11,10 +11,12 @@ import {
   formatEventDate,
   gradePicks,
   isLeaderboardOpen,
+  isSubmissionOpen,
   picksFromPayload,
   resultPick,
   resultsSignature,
   sideNames,
+  submissionDeadlineLabel,
 } from '../utils/tournamentPredictions.js';
 
 // Live-data twin of TeamPredictionsScreen. Same look and flow, but teams,
@@ -58,7 +60,7 @@ function TeamCard({ team, players, onOpenPlayer }) {
   );
 }
 
-function MatchCard({ fixture, scoreRanges, pick, userPick, locked, onPick, onRange, onToggleScore }) {
+function MatchCard({ fixture, scoreRanges, pick, userPick, locked, disabled = false, onPick, onRange, onToggleScore }) {
   const team1Players = sideNames(fixture.team1Players);
   const team2Players = sideNames(fixture.team2Players);
   const hasScore = fixture.scoreA !== null && fixture.scoreB !== null;
@@ -79,7 +81,7 @@ function MatchCard({ fixture, scoreRanges, pick, userPick, locked, onPick, onRan
           className={`smash-side ${pick.winner === 0 ? 'selected' : ''}`}
           onClick={() => onPick(0)}
           aria-pressed={pick.winner === 0}
-          disabled={locked}
+          disabled={locked || disabled}
         >
           <strong>{team1Players}</strong>
           {pick.winner === 0 && <small>{locked ? '✓ WON' : '✓ WINNER'}</small>}
@@ -90,7 +92,7 @@ function MatchCard({ fixture, scoreRanges, pick, userPick, locked, onPick, onRan
           className={`smash-side ${pick.winner === 1 ? 'selected' : ''}`}
           onClick={() => onPick(1)}
           aria-pressed={pick.winner === 1}
-          disabled={locked}
+          disabled={locked || disabled}
         >
           <strong>{team2Players}</strong>
           {pick.winner === 1 && <small>{locked ? '✓ WON' : '✓ WINNER'}</small>}
@@ -105,7 +107,7 @@ function MatchCard({ fixture, scoreRanges, pick, userPick, locked, onPick, onRan
             <b>No pick made</b>
           )}
         </div>
-      ) : scoreRanges.length > 0 && (
+      ) : !disabled && scoreRanges.length > 0 && (
         <>
           <button
             type="button"
@@ -255,6 +257,9 @@ export default function TournamentPredictionsScreen({
   const grade = useMemo(() => gradePicks(model, picks), [model, picks]);
   const completedCount = fixtures.filter((fixture) => fixture.completed).length;
   const openFixtures = fixtures.filter((fixture) => !fixture.completed);
+  // Entries freeze at the end of the day before the tournament.
+  const submissionOpen = isSubmissionOpen(model.eventDate);
+  const deadlineLabel = submissionDeadlineLabel(model.eventDate);
   const allOpenPicked = openFixtures.every((fixture) => picks[fixture.id]?.winner !== undefined);
 
   const members = useMemo(
@@ -391,6 +396,7 @@ export default function TournamentPredictionsScreen({
   }, [fetchLeaderboard]);
 
   function updatePick(fixtureId, changes) {
+    if (!submissionOpen) return;
     setPicks((current) => ({
       ...current,
       [fixtureId]: { ...EMPTY_PICK, ...current[fixtureId], ...changes },
@@ -484,6 +490,10 @@ export default function TournamentPredictionsScreen({
     if (!identityMobile || !identityName) {
       setFormError('Enter your mobile number to continue.');
       setIdentityDialogOpen(true);
+      return;
+    }
+    if (!submissionOpen) {
+      setFormError(`Submissions closed on ${deadlineLabel}. Picks can no longer be changed.`);
       return;
     }
     if (userPickCount === 0) {
@@ -596,6 +606,11 @@ export default function TournamentPredictionsScreen({
                 <h1>{model.name.toUpperCase()}<br /><span>PREDICT &amp; WIN.</span></h1>
                 <p className="smash-muted">
                   Pick the winner of every fixture before it is played. Picks lock as soon as a result is recorded, and the member with the most correct picks takes the prize.
+                  {deadlineLabel && (
+                    <>
+                      {' '}<strong>{submissionOpen ? 'Last date for submissions:' : 'Submissions closed on'} {deadlineLabel}.</strong>
+                    </>
+                  )}
                 </p>
               </div>
               <div className="smash-hero-card">
@@ -875,6 +890,13 @@ export default function TournamentPredictionsScreen({
                 {scoreRanges.length > 0 ? ' Losing-team score ranges are optional and follow the tournament’s bonus rules.' : ''}
                 {completedCount > 0 ? ` ${completedCount} ${completedCount === 1 ? 'match has' : 'matches have'} finished and can no longer be changed.` : ''}
               </p>
+              {deadlineLabel && (
+                <p className="smash-notice">
+                  {submissionOpen
+                    ? `Submit or update your picks by ${deadlineLabel}. No submissions are accepted after that.`
+                    : `Submissions closed on ${deadlineLabel}. Your saved picks are final.`}
+                </p>
+              )}
               <div className="smash-matches">
                 {fixtures.length ? fixtures.map((fixture) => {
                   const locked = resultPick(model, fixture);
@@ -884,6 +906,7 @@ export default function TournamentPredictionsScreen({
                       fixture={fixture}
                       scoreRanges={scoreRanges}
                       locked={Boolean(locked)}
+                      disabled={!submissionOpen}
                       userPick={picks[fixture.id]}
                       pick={locked || picks[fixture.id] || EMPTY_PICK}
                       onPick={(winner) => updatePick(fixture.id, { winner })}
@@ -904,7 +927,7 @@ export default function TournamentPredictionsScreen({
                   <h2 id="forecast-title">Who takes the trophy?</h2>
                   <p className="smash-muted">Projected standings and title chances based on recorded results and your match predictions.</p>
                 </div>
-                {openFixtures.length > 0 && (
+                {submissionOpen && openFixtures.length > 0 && (
                   <button className="smash-mini-button" type="button" onClick={applySamplePicks}>Try sample picks</button>
                 )}
               </div>
@@ -1002,10 +1025,10 @@ export default function TournamentPredictionsScreen({
               className="smash-primary"
               type="button"
               id="submit"
-              disabled={busy || identityBusy || userPickCount === 0}
+              disabled={busy || identityBusy || userPickCount === 0 || !submissionOpen}
               onClick={submitPredictions}
             >
-              {busy ? 'Saving…' : submitted ? 'Update predictions →' : 'Submit predictions →'}
+              {!submissionOpen ? 'Submissions closed' : busy ? 'Saving…' : submitted ? 'Update predictions →' : 'Submit predictions →'}
             </button>
           </div>
         </div>

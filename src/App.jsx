@@ -31,8 +31,14 @@ import PredictionsScreen from './components/PredictionsScreen.jsx';
 import TeamPredictionsScreen from './components/TeamPredictionsScreen.jsx';
 import TournamentPredictionsScreen from './components/TournamentPredictionsScreen.jsx';
 import TournamentFixturesScreen from './components/TournamentFixturesScreen.jsx';
-import { buildLeaderboard, buildPredictionModel, resultsSignature } from './utils/tournamentPredictions.js';
-import { buildLegacyLeaderboard } from './utils/legacyPredictionResults.js';
+import {
+  buildLeaderboard,
+  buildPredictionModel,
+  isSubmissionOpen,
+  resultsSignature,
+  submissionDeadlineLabel,
+} from './utils/tournamentPredictions.js';
+import { buildLegacyLeaderboard, LEGACY_EVENT_DATE } from './utils/legacyPredictionResults.js';
 import FixturesScreen from './components/FixturesScreen.jsx';
 import {
   buildTeamMatchTournamentPayload,
@@ -861,6 +867,9 @@ export default function App() {
   }
 
   async function saveTeamMatchPredictions(input) {
+    if (!isSubmissionOpen(LEGACY_EVENT_DATE)) {
+      throw new Error(`Submissions closed on ${submissionDeadlineLabel(LEGACY_EVENT_DATE)}.`);
+    }
     setPredictionSaving(true);
     try {
       return await savePrediction({
@@ -943,6 +952,11 @@ export default function App() {
   // Tournament-scoped SMASHPICKS: same storage as the legacy page, keyed by
   // the real tournament id so every tournament gets its own prediction pool.
   async function saveTournamentPredictions(tournamentId, input) {
+    const tournament = liveTournamentFor(tournamentId) || selectedTournament;
+    const eventDate = tournament?.id === tournamentId ? tournament.eventDate : '';
+    if (!isSubmissionOpen(eventDate)) {
+      throw new Error(`Submissions closed on ${submissionDeadlineLabel(eventDate)}.`);
+    }
     setPredictionSaving(true);
     try {
       return await savePrediction({

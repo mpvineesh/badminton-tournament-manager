@@ -408,6 +408,26 @@ export function isLeaderboardOpen(eventDate, today = isoDateToday()) {
   return today >= raw;
 }
 
+/**
+ * Picks can be submitted or changed until the end of the day before the
+ * tournament. From tournament day onwards the entry is frozen.
+ */
+export function isSubmissionOpen(eventDate, today = isoDateToday()) {
+  const raw = String(eventDate || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return true;
+  return today < raw;
+}
+
+/** The last day picks are accepted (the day before the tournament), formatted for display. */
+export function submissionDeadlineLabel(eventDate) {
+  const raw = String(eventDate || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return '';
+  const date = new Date(`${raw}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setDate(date.getDate() - 1);
+  return `${date.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}, 11:59 PM`;
+}
+
 export function formatEventDate(value) {
   const raw = String(value || '').trim();
   if (!raw) return '';

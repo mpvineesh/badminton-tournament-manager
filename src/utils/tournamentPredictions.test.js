@@ -8,6 +8,8 @@ import {
   effectivePicks,
   gradePicks,
   isLeaderboardOpen,
+  isSubmissionOpen,
+  submissionDeadlineLabel,
   picksFromPayload,
   rangeForScore,
   resultsSignature,
@@ -137,4 +139,13 @@ test('the leaderboard only opens from the tournament date onwards', () => {
   assert.equal(isLeaderboardOpen('2026-11-15', '2026-11-15'), true);
   assert.equal(isLeaderboardOpen('2026-11-15', '2026-12-01'), true);
   assert.equal(isLeaderboardOpen('', '2026-01-01'), true);
+});
+
+test('submissions close at the end of the day before the tournament', () => {
+  assert.equal(isSubmissionOpen('2026-11-15', '2026-11-14'), true);
+  assert.equal(isSubmissionOpen('2026-11-15', '2026-11-15'), false);
+  assert.equal(isSubmissionOpen('2026-11-15', '2026-11-16'), false);
+  assert.equal(isSubmissionOpen('', '2026-11-16'), true);
+  assert.match(submissionDeadlineLabel('2026-11-15'), /14.*2026, 11:59 PM/);
+  assert.equal(submissionDeadlineLabel(''), '');
 });
