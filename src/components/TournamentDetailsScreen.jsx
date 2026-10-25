@@ -91,8 +91,8 @@ function writeSkippedMatchKeys(storageKey, keys) {
   }
 }
 
-// Skipped matches are pushed to the back of the queue (in the order they were
-// skipped) rather than hidden, so they resurface once everything else is done.
+// Live matches are shown in the current-match panel above, so only upcoming
+// matches are recommended here.
 function getRecommendedCourtMatches(matches, teamsById, skippedKeys = []) {
   const all = matches || [];
   const liveMatches = all.filter((m) => m?.status === 'Live');
