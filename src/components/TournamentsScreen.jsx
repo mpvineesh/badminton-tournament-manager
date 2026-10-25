@@ -43,6 +43,8 @@ export default function TournamentsScreen({
   onOpenTournamentDetails,
   onOpenTournamentSettings,
   onOpenTournamentFixture,
+  onOpenTournamentPredictions,
+  onOpenTournamentFixtures,
   onCreateTeamTournament,
   creatingTeamTournament = false,
   handleTournamentDelete,
@@ -459,6 +461,18 @@ export default function TournamentsScreen({
                         >
                           Points
                         </button>
+                        <button
+                          className="px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
+                          onClick={() => onOpenTournamentPredictions?.(row.id)}
+                        >
+                          Predictions
+                        </button>
+                        <button
+                          className="px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
+                          onClick={() => onOpenTournamentFixtures?.(row.id)}
+                        >
+                          Fixtures
+                        </button>
                         {isAdminUser && (
                           <button
                             className="px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
@@ -561,6 +575,18 @@ export default function TournamentsScreen({
                                 onClick={() => openTournamentLiveView(row.id, 'points')}
                               >
                                 Point Table
+                              </button>
+                              <button
+                                className="px-2 py-1 rounded-lg border hover:bg-slate-100"
+                                onClick={() => onOpenTournamentPredictions?.(row.id)}
+                              >
+                                Predictions
+                              </button>
+                              <button
+                                className="px-2 py-1 rounded-lg border hover:bg-slate-100"
+                                onClick={() => onOpenTournamentFixtures?.(row.id)}
+                              >
+                                Fixtures
                               </button>
                               {isAdminUser && (
                                 <button

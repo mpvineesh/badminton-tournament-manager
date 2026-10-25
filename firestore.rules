@@ -44,6 +44,18 @@ service cloud.firestore {
       allow write: if signedIn();
     }
 
+    // Match results for the static SMASHPICKS pages: scores per fixture, no identities.
+    match /team_prediction_results/{tournamentId} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // Prediction leaderboards hold display names and correct-pick counts only.
+    match /team_prediction_leaderboards/{tournamentId} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
     // Skill suggestions: public read; signed-in write.
     match /skill_suggestions/{suggId} {
       allow read: if true;

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './TeamPredictionsScreen.css';
 import { TEAMS, PAIRINGS, FIXTURES, getFixturePlayers } from '../data/teamMatchFixtures.js';
+import { LEGACY_EVENT_DATE, legacyResultPicks, legacyResultsSignature } from '../utils/legacyPredictionResults.js';
+import { isLeaderboardOpen } from '../utils/tournamentPredictions.js';
 import PlayerProfileLink from './PlayerProfileLink.jsx';
 
 const SCORE_RANGES = [
@@ -225,16 +227,20 @@ function TeamCard({ team, players, rosterPlayerIds, onOpenPlayer }) {
   );
 }
 
-function MatchCard({ fixture, players, rosterPlayerIds, pick, onPick, onRange, onToggleScore }) {
+function MatchCard({ fixture, players, rosterPlayerIds, pick, userPick, locked = false, onPick, onRange, onToggleScore }) {
   const team1Players = getFixturePlayers(fixture, fixture.team1, players, rosterPlayerIds);
   const team2Players = getFixturePlayers(fixture, fixture.team2, players, rosterPlayerIds);
+  const result = locked ? pick.result : null;
+  const graded = locked && userPick?.winner !== undefined;
+  const correct = graded && userPick.winner === pick.winner;
+  const statusText = locked ? 'FINAL' : pick.winner !== undefined ? '✓ PICKED' : 'AWAITING PICK';
   return (
-    <article className="smash-match">
+    <article className={`smash-match ${locked ? 'is-final' : ''}`}>
       <div className="smash-match-top">
         <span>
           Match {String(fixture.number).padStart(2, '0')} - {fixture.team1.name} vs {fixture.team2.name} ({fixture.pairing.id})
         </span>
-        <span>{pick.winner !== undefined ? '✓ PICKED' : 'AWAITING PICK'}</span>
+        <span>{statusText}</span>
       </div>
       <div className="smash-versus">
         <button
@@ -242,21 +248,34 @@ function MatchCard({ fixture, players, rosterPlayerIds, pick, onPick, onRange, o
           className={`smash-side ${pick.winner === 0 ? 'selected' : ''}`}
           onClick={() => onPick(0)}
           aria-pressed={pick.winner === 0}
+          disabled={locked}
         >
           <strong>{team1Players}</strong>
-          {pick.winner === 0 && <small>✓ WINNER</small>}
+          {pick.winner === 0 && <small>{locked ? '✓ WON' : '✓ WINNER'}</small>}
         </button>
-        <span className="smash-vs">VS</span>
+        <span className="smash-vs">{result ? `${result.team1Score}–${result.team2Score}` : 'VS'}</span>
         <button
           type="button"
           className={`smash-side ${pick.winner === 1 ? 'selected' : ''}`}
           onClick={() => onPick(1)}
           aria-pressed={pick.winner === 1}
+          disabled={locked}
         >
           <strong>{team2Players}</strong>
-          {pick.winner === 1 && <small>✓ WINNER</small>}
+          {pick.winner === 1 && <small>{locked ? '✓ WON' : '✓ WINNER'}</small>}
         </button>
       </div>
+      {locked && (
+        <div className="smash-result-line">
+          <span>Result recorded · picks locked</span>
+          {graded ? (
+            <b className={correct ? 'hit' : 'miss'}>{correct ? '✓ Your pick was right' : '✗ Your pick missed'}</b>
+          ) : (
+            <b>No pick made</b>
+          )}
+        </div>
+      )}
+      {!locked && (
       <button
         type="button"
         className="smash-score-toggle"
@@ -265,7 +284,8 @@ function MatchCard({ fixture, players, rosterPlayerIds, pick, onPick, onRange, o
       >
         {pick.open ? '− Hide score' : '＋ Predict score'}
       </button>
-      {pick.open && (
+      )}
+      {!locked && pick.open && (
         <>
           <div className="smash-score-choice-label">Losing team's score range (optional)</div>
           <div className="smash-score-choices">
@@ -363,6 +383,9 @@ export default function TeamPredictionsScreen({
   loadPredictionDetails,
   loadPredictionAnalytics,
   initializePredictionAnalytics,
+  loadResults,
+  loadLeaderboard,
+  refreshLeaderboard,
   isAdmin = false,
   authenticatedMobile = '',
   onPredictionIdentity,
@@ -373,6 +396,11 @@ export default function TeamPredictionsScreen({
   onOpenPlayer,
 }) {
   const [picks, setPicks] = useState({});
+  const [results, setResults] = useState({});
+  const [leaderboard, setLeaderboard] = useState(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState('');
+  const [myEntryId, setMyEntryId] = useState('');
   const [identityDialogOpen, setIdentityDialogOpen] = useState(!authenticatedMobile);
   const [identityBusy, setIdentityBusy] = useState(false);
   const [identityName, setIdentityName] = useState('');
@@ -389,7 +417,25 @@ export default function TeamPredictionsScreen({
   const [analytics, setAnalytics] = useState({ submissions: 0, fixtures: {} });
   const [analyticsError, setAnalyticsError] = useState('');
   const restoredMobileRef = useRef('');
-  const forecast = useMemo(() => calculateForecast(picks), [picks]);
+  // Recorded results replace the user's pick for the forecast; the original
+  // pick is kept so it can be graded.
+  const resultPicks = useMemo(() => legacyResultPicks(results), [results]);
+  const combinedPicks = useMemo(() => ({ ...picks, ...resultPicks }), [picks, resultPicks]);
+  const completedCount = Object.keys(resultPicks).length;
+  const userPickCount = FIXTURES.filter((fixture) => picks[fixture.id]?.winner !== undefined).length;
+  const grade = useMemo(() => {
+    let graded = 0;
+    let correct = 0;
+    for (const fixture of FIXTURES) {
+      const actual = resultPicks[fixture.id];
+      const pick = picks[fixture.id];
+      if (!actual || pick?.winner === undefined) continue;
+      graded += 1;
+      if (pick.winner === actual.winner) correct += 1;
+    }
+    return { graded, correct };
+  }, [picks, resultPicks]);
+  const forecast = useMemo(() => calculateForecast(combinedPicks), [combinedPicks]);
   const communityOdds = useMemo(() => calculateCommunityOdds(analytics), [analytics]);
   const members = useMemo(
     () =>
@@ -436,6 +482,42 @@ export default function TeamPredictionsScreen({
   useEffect(() => {
     refreshMembers();
   }, [refreshMembers]);
+
+  useEffect(() => {
+    let active = true;
+    if (!loadResults) return undefined;
+    loadResults()
+      .then((next) => {
+        if (active) setResults(next || {});
+      })
+      .catch((error) => console.error('Unable to load match results.', error));
+    return () => { active = false; };
+  }, [loadResults]);
+
+  const currentSignature = useMemo(() => legacyResultsSignature(results), [results]);
+  const leaderboardOpen = isLeaderboardOpen(LEGACY_EVENT_DATE);
+  const leaderboardStale = Boolean(leaderboard) && leaderboard.resultsSignature !== currentSignature;
+  const fetchLeaderboard = useCallback(async () => {
+    if (!leaderboardOpen || (!loadLeaderboard && !refreshLeaderboard)) return;
+    setLeaderboardLoading(true);
+    setLeaderboardError('');
+    try {
+      let next = loadLeaderboard ? await loadLeaderboard() : null;
+      const stale = !next || next.resultsSignature !== currentSignature;
+      if (stale && isAdmin && refreshLeaderboard) {
+        next = (await refreshLeaderboard()) || next;
+      }
+      setLeaderboard(next);
+    } catch (error) {
+      setLeaderboardError(error?.message || 'Unable to load the prediction leaderboard.');
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }, [currentSignature, isAdmin, leaderboardOpen, loadLeaderboard, refreshLeaderboard]);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [fetchLeaderboard]);
 
   useEffect(() => {
     const mobile = normalizeMobile(authenticatedMobile);
@@ -521,6 +603,7 @@ export default function TeamPredictionsScreen({
       restoredMobileRef.current = memberMobile;
       onPredictionIdentity?.({ ...player, name: memberName, mobile: memberMobile });
       const saved = await loadPredictionByMobile(memberMobile);
+      setMyEntryId(String(saved?.id || ''));
       const payload = saved?.payload;
       if (payload?.kind === 'team-match-predictions') {
         const restoredPicks = {};
@@ -585,7 +668,7 @@ export default function TeamPredictionsScreen({
       setIdentityDialogOpen(true);
       return;
     }
-    if (forecast.playedCount === 0) {
+    if (userPickCount === 0) {
       setFormError('Pick at least one match winner first.');
       return;
     }
@@ -606,7 +689,7 @@ export default function TeamPredictionsScreen({
       });
 
     try {
-      await onSave({
+      const savedEntry = await onSave({
         name: identityName,
         mobile: identityMobile,
         predictions,
@@ -617,8 +700,9 @@ export default function TeamPredictionsScreen({
           playedCount: forecast.playedCount,
         },
       });
+      if (savedEntry?.id) setMyEntryId(String(savedEntry.id));
       setSubmitted(true);
-      await refreshMembers();
+      await Promise.all([refreshMembers(), fetchLeaderboard()]);
     } catch (error) {
       setSaveError(error?.message || 'Unable to save your predictions. Please try again.');
     }
@@ -652,7 +736,7 @@ export default function TeamPredictionsScreen({
 
   function applySamplePicks() {
     const sample = {};
-    FIXTURES.forEach((fixture, index) => {
+    FIXTURES.filter((fixture) => !resultPicks[fixture.id]).forEach((fixture, index) => {
       sample[fixture.id] = {
         winner: (index * 13 + Math.floor(index / PAIRINGS.length)) % 3 === 0 ? 0 : 1,
         range: null,
@@ -689,9 +773,15 @@ export default function TeamPredictionsScreen({
           <div className="smash-hero-card">
             <div className="smash-eyebrow">YOUR PREDICTION CARD</div>
             <div>
-              <strong>{forecast.playedCount} / {FIXTURES.length}</strong>
+              <strong>{userPickCount} / {FIXTURES.length}</strong>
               <p className="smash-muted">Matches predicted</p>
             </div>
+            {grade.graded > 0 && (
+              <div>
+                <strong>{grade.correct} / {grade.graded}</strong>
+                <p className="smash-muted">Correct so far</p>
+              </div>
+            )}
             <div className="smash-hero-card-footer">
               {identityMobile && (
                 <div className="smash-welcome">Welcome, {identityName}!</div>
@@ -740,6 +830,72 @@ export default function TeamPredictionsScreen({
           <p className="smash-community-footnote">
             Estimated from the community’s match picks across {FIXTURES.length} fixtures.
           </p>
+        </section>
+
+        <section className="smash-forecast" aria-labelledby="leaderboard-title">
+          <div className="smash-forecast-head">
+            <div>
+              <span className="smash-forecast-label">✦ PREDICTION LEADERBOARD</span>
+              <h2 id="leaderboard-title">Who is calling it right?</h2>
+              <p className="smash-muted">
+                One point for every correctly predicted winner. Ties are split by correct losing-score ranges, then by who submitted first.
+              </p>
+            </div>
+            {leaderboardOpen && (
+              <button
+                type="button"
+                className="smash-mini-button"
+                onClick={fetchLeaderboard}
+                disabled={leaderboardLoading}
+              >
+                {leaderboardLoading ? 'Refreshing…' : '↻ Refresh'}
+              </button>
+            )}
+          </div>
+          {!leaderboardOpen ? (
+            <div className="smash-members-message">
+              The leaderboard opens on tournament day, November 15, 2026. Until then, keep your picks coming.
+            </div>
+          ) : leaderboardError ? (
+            <div className="smash-members-message error" role="alert">
+              <span>{leaderboardError}</span>
+              <button type="button" onClick={fetchLeaderboard} disabled={leaderboardLoading}>Try again</button>
+            </div>
+          ) : leaderboardLoading && !leaderboard ? (
+            <div className="smash-members-message" role="status">Loading leaderboard…</div>
+          ) : !leaderboard || leaderboard.rows.length === 0 ? (
+            <div className="smash-members-message">
+              {completedCount === 0
+                ? 'The leaderboard fills in as soon as the first match result is recorded.'
+                : 'No scored predictions yet.'}
+            </div>
+          ) : (
+            <div className="smash-forecast-table">
+              <p className="smash-mini-title">
+                Standings <span>· after {leaderboard.completedCount} of {leaderboard.fixtureCount} matches</span>
+              </p>
+              {leaderboard.rows.map((row) => (
+                <div
+                  className={`smash-forecast-row smash-leaderboard-row ${row.id && row.id === myEntryId ? 'is-me' : ''}`}
+                  key={row.id || row.name}
+                >
+                  <span className="smash-rank">{row.rank}</span>
+                  <strong>{row.name}{row.id && row.id === myEntryId ? ' (you)' : ''}</strong>
+                  <small>
+                    {row.rangeHits ? `${row.rangeHits} range ${row.rangeHits === 1 ? 'hit' : 'hits'}` : ''}
+                    {row.rangeHits && row.pending ? ' · ' : ''}
+                    {row.pending ? `${row.pending} pending` : ''}
+                  </small>
+                  <b>{row.correct} / {row.graded}</b>
+                </div>
+              ))}
+              {leaderboardStale && (
+                <p className="smash-leaderboard-stale" role="status">
+                  New results have been recorded since this leaderboard was updated. It refreshes automatically when the next result is saved.
+                </p>
+              )}
+            </div>
+          )}
         </section>
 
         <section className="smash-member-results" aria-labelledby="member-results-title">
@@ -892,6 +1048,7 @@ export default function TeamPredictionsScreen({
           </div>
           <p className="smash-notice">
             Fixtures are generated from the team pairings in the tournament rules: A+B, A+C, B+D and C+E. Each team matchup includes all four pairings. Losing-team score ranges are optional.
+            {completedCount > 0 ? ` ${completedCount} ${completedCount === 1 ? 'match has' : 'matches have'} finished and can no longer be changed.` : ''}
           </p>
           <div className="smash-matches">
             {FIXTURES.length ? FIXTURES.map((fixture) => (
@@ -900,7 +1057,9 @@ export default function TeamPredictionsScreen({
                 fixture={fixture}
                 players={players}
                 rosterPlayerIds={rosterPlayerIds}
-                pick={picks[fixture.id] || { winner: undefined, range: null, open: false }}
+                locked={Boolean(resultPicks[fixture.id])}
+                userPick={picks[fixture.id]}
+                pick={resultPicks[fixture.id] || picks[fixture.id] || { winner: undefined, range: null, open: false }}
                 onPick={(winner) => updatePick(fixture.id, { winner })}
                 onRange={(range) => updatePick(fixture.id, { range: picks[fixture.id]?.range === range ? null : range })}
                 onToggleScore={() => updatePick(fixture.id, { open: !picks[fixture.id]?.open })}
@@ -961,7 +1120,7 @@ export default function TeamPredictionsScreen({
               <h2>My Prediction Result</h2>
             </div>
             <span className="smash-forecast-badge">
-              {forecast.playedCount} / {FIXTURES.length} games picked
+              {userPickCount} / {FIXTURES.length} games picked
             </span>
           </div>
           <div className="smash-my-result-grid">
@@ -1004,14 +1163,14 @@ export default function TeamPredictionsScreen({
       <div className="smash-sticky">
         <div className="smash-sticky-inner">
           <div className="smash-sticky-summary">
-            <b id="summary">{forecast.playedCount} of {FIXTURES.length} picks completed</b>
-            <div className="smash-progress"><div style={{ width: `${forecast.playedCount / FIXTURES.length * 100}%` }} /></div>
+            <b id="summary">{userPickCount} of {FIXTURES.length} picks completed</b>
+            <div className="smash-progress"><div style={{ width: `${userPickCount / FIXTURES.length * 100}%` }} /></div>
           </div>
           <button
             className="smash-primary"
             type="button"
             id="submit"
-            disabled={busy || identityBusy || forecast.playedCount === 0}
+            disabled={busy || identityBusy || userPickCount === 0}
             onClick={submitPredictions}
           >
             {busy ? 'Saving…' : submitted ? 'Update predictions →' : 'Submit predictions →'}
@@ -1019,7 +1178,7 @@ export default function TeamPredictionsScreen({
         </div>
       </div>
 
-      {identityName && forecast.playedCount === FIXTURES.length && (
+      {identityName && userPickCount > 0 && forecast.playedCount === FIXTURES.length && (
         <button
           className="smash-whatsapp-float"
           type="button"

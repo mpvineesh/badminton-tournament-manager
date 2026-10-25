@@ -29,6 +29,10 @@ import ProfileScreen from './components/ProfileScreen.jsx';
 import SkillLevelScreen from './components/SkillLevelScreen.jsx';
 import PredictionsScreen from './components/PredictionsScreen.jsx';
 import TeamPredictionsScreen from './components/TeamPredictionsScreen.jsx';
+import TournamentPredictionsScreen from './components/TournamentPredictionsScreen.jsx';
+import TournamentFixturesScreen from './components/TournamentFixturesScreen.jsx';
+import { buildLeaderboard, buildPredictionModel, resultsSignature } from './utils/tournamentPredictions.js';
+import { buildLegacyLeaderboard } from './utils/legacyPredictionResults.js';
 import FixturesScreen from './components/FixturesScreen.jsx';
 import {
   buildTeamMatchTournamentPayload,
@@ -69,6 +73,11 @@ import {
   initializeTeamMatchPredictionAnalytics,
   getPredictionByTournamentAndUser,
   publishTeamPredictionSummary,
+  getTeamPredictionLeaderboard,
+  publishTeamPredictionLeaderboard,
+  getTeamMatchResults,
+  saveTeamMatchResult,
+  LEGACY_TEAM_PREDICTION_TOURNAMENT_ID,
   savePrediction,
   isFirebaseMode,
   uploadPlayerProfilePhoto,
@@ -120,6 +129,10 @@ function DeleteIcon({ className = 'h-4 w-4' }) {
 export default function App() {
   const AUTH_MOBILE_KEY = 'tm_logged_mobile';
   const ACTIVE_MENU_KEY = 'tm_active_menu';
+  // Screens that draw their own SMASHPICKS chrome instead of the app header/nav.
+  const FULL_BLEED_MENUS = ['team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures'];
+  // Tournament-scoped SMASHPICKS screens that are shareable without logging in.
+  const PUBLIC_TOURNAMENT_MENUS = ['tournament-picks', 'tournament-fixtures'];
   const RESTORABLE_MENUS = new Set([
     'home',
     'fixture',
@@ -184,6 +197,7 @@ export default function App() {
   const [skillAverages, setSkillAverages] = useState([]);
   const [skillAveragesLoading, setSkillAveragesLoading] = useState(false);
   const [predictionSaving, setPredictionSaving] = useState(false);
+  const publishedLeaderboardSignatures = useRef(new Map());
   const [predictionError, setPredictionError] = useState('');
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [selectedPlayerStatsId, setSelectedPlayerStatsId] = useState('');
@@ -295,6 +309,11 @@ export default function App() {
         setSelectedPlayerStatsId(urlNav.playerStatsId);
         setPlayerStatsReturnMenu('team-predictions');
         setActiveMenu('player-stats');
+      } else if (PUBLIC_TOURNAMENT_MENUS.includes(urlNav?.activeMenu) && urlNav.selectedTournamentId) {
+        loadTournament(urlNav.selectedTournamentId)
+          .then((data) => setSelectedTournament(data))
+          .catch(() => {});
+        setActiveMenu(urlNav.activeMenu);
       } else {
         setActiveMenu(
           ['team-predictions', 'fixtures'].includes(urlNav?.activeMenu)
@@ -321,6 +340,8 @@ export default function App() {
       activeMenu === 'tournaments' ||
       activeMenu === 'home' ||
       activeMenu === 'tournament' ||
+      activeMenu === 'tournament-picks' ||
+      activeMenu === 'tournament-fixtures' ||
       activeMenu === 'predictions' ||
       activeMenu === 'player-stats' ||
       activeMenu === 'scoreboard'
@@ -889,6 +910,99 @@ export default function App() {
     return publishTeamPredictionSummary(input);
   }
 
+  // Static SMASHPICKS pages (/predictions, /fixtures): results live in their own
+  // store and the leaderboard is rebuilt whenever an admin saves a result.
+  async function loadLegacyMatchResults() {
+    return getTeamMatchResults(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID);
+  }
+
+  async function loadLegacyPredictionLeaderboard() {
+    return getTeamPredictionLeaderboard(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID);
+  }
+
+  async function refreshLegacyPredictionLeaderboard() {
+    const [results, entries] = await Promise.all([
+      getTeamMatchResults(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID),
+      listTeamMatchPredictionDetails(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID),
+    ]);
+    if (!entries.length) return null;
+    const leaderboard = buildLegacyLeaderboard(results, entries);
+    await publishTeamPredictionLeaderboard(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID, leaderboard);
+    return leaderboard;
+  }
+
+  async function saveLegacyMatchResult(fixtureId, result) {
+    if (!isAdminUser) throw new Error('Only admin can update match results.');
+    const results = await saveTeamMatchResult(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID, fixtureId, result);
+    refreshLegacyPredictionLeaderboard().catch((error) => {
+      console.error('Unable to update the prediction leaderboard.', error);
+    });
+    return results;
+  }
+
+  // Tournament-scoped SMASHPICKS: same storage as the legacy page, keyed by
+  // the real tournament id so every tournament gets its own prediction pool.
+  async function saveTournamentPredictions(tournamentId, input) {
+    setPredictionSaving(true);
+    try {
+      return await savePrediction({
+        tournamentId,
+        predictorMobile: input.mobile,
+        payload: {
+          kind: 'team-match-predictions',
+          predictorName: input.name,
+          predictions: input.predictions,
+        },
+        publicSummary: input.publicSummary,
+      });
+    } catch (e) {
+      console.error(e);
+      throw new Error(e?.message || 'Unable to submit predictions.');
+    } finally {
+      setPredictionSaving(false);
+    }
+  }
+
+  async function publishTournamentPredictionSummary(input) {
+    if (!isFirebaseMode()) return;
+    return publishTeamPredictionSummary(input);
+  }
+
+  // Scores every saved prediction against the tournament's recorded results and
+  // publishes the identity-safe leaderboard. Called whenever a result is saved
+  // and when an admin opens a predictions page whose leaderboard is stale.
+  async function refreshTournamentPredictionLeaderboard(tournamentOrId, options = {}) {
+    const tournament =
+      typeof tournamentOrId === 'string'
+        ? (liveTournamentFor(tournamentOrId) || (await loadTournament(tournamentOrId)))
+        : tournamentOrId;
+    if (!tournament?.id) return null;
+    const model = buildPredictionModel(tournament);
+    const signature = resultsSignature(model);
+    // Autosaves fire often; only re-score when the set of results has changed.
+    if (!options.force && publishedLeaderboardSignatures.current.get(tournament.id) === signature) {
+      return null;
+    }
+    const entries = await listTeamMatchPredictionDetails(tournament.id);
+    if (!entries.length) return null;
+    const leaderboard = buildLeaderboard(model, entries);
+    await publishTeamPredictionLeaderboard(tournament.id, leaderboard);
+    publishedLeaderboardSignatures.current.set(tournament.id, signature);
+    return leaderboard;
+  }
+
+  function liveTournamentFor(id) {
+    const row = (tournamentsList || []).find((item) => item?.id === id);
+    if (!row?.payload) return null;
+    return { ...row.payload, id: row.id, name: row.name, status: row.status };
+  }
+
+  function syncPredictionLeaderboard(tournament) {
+    refreshTournamentPredictionLeaderboard(tournament).catch((error) => {
+      console.error('Unable to update the prediction leaderboard.', error);
+    });
+  }
+
   async function saveMyProfile(updates) {
     if (!profilePlayer?.id) return;
     setProfileSaving(true);
@@ -1174,6 +1288,22 @@ export default function App() {
     }
   }
 
+  async function openTournamentSmashPicks(id, menu) {
+    setTournamentsError('');
+    try {
+      const data = await loadTournament(id);
+      setSelectedTournament(data);
+      setSelectedMatchRef(null);
+      setTournamentView('list');
+      setActiveMenu(menu);
+    } catch (e) {
+      console.error(e);
+      setTournamentsError(e?.message || 'Unable to load the tournament.');
+    }
+  }
+  const openTournamentPicks = (id) => openTournamentSmashPicks(id, 'tournament-picks');
+  const openTournamentFixtures = (id) => openTournamentSmashPicks(id, 'tournament-fixtures');
+
   async function saveTournamentSettings(updates) {
     if (!isAdminUser) {
       setTournamentsError('Only admin can update tournament settings.');
@@ -1368,6 +1498,9 @@ export default function App() {
           row.id === fixtureTournamentId ? { ...row, status: payload.status } : row
         )
       );
+      if ((payload.groupMatches || []).some((m) => m?.status === 'Completed')) {
+        syncPredictionLeaderboard({ ...payload, id: fixtureTournamentId });
+      }
     } catch (e) {
       console.error(e);
       if (!silent) {
@@ -1551,6 +1684,10 @@ export default function App() {
       setTournamentsList((prev) =>
         prev.map((row) => (row.id === next.id ? { ...row, status: next.status } : row))
       );
+      // A result was recorded or changed: re-score the prediction leaderboard.
+      if (status === 'Completed' || existingMatch?.status === 'Completed') {
+        syncPredictionLeaderboard(next);
+      }
       if (!silent) {
         setTournamentView('matches');
         await refreshTournamentsList();
@@ -3033,16 +3170,31 @@ export default function App() {
     }
   }
 
+  // The tournaments list is kept live, so prefer its copy of the selected
+  // tournament for the SMASHPICKS screens: results appear without a reload.
+  const liveTournamentRow = selectedTournament?.id
+    ? (tournamentsList || []).find((row) => row?.id === selectedTournament.id)
+    : null;
+  const liveSelectedTournament = liveTournamentRow?.payload
+    ? {
+        ...selectedTournament,
+        ...liveTournamentRow.payload,
+        id: liveTournamentRow.id,
+        name: liveTournamentRow.name || selectedTournament?.name,
+        status: liveTournamentRow.status || selectedTournament?.status,
+      }
+    : selectedTournament;
+
   return (
     <div
       className={`min-h-screen overflow-x-clip ${
-        ['predictions', 'team-predictions', 'fixtures'].includes(activeMenu)
+        activeMenu === 'predictions' || FULL_BLEED_MENUS.includes(activeMenu)
           ? ''
           : 'app-theme'
       }`}
     >
       <Toast toasts={toasts} onDismiss={dismissToast} />
-      {!['team-predictions', 'fixtures'].includes(activeMenu) && <AppHeader
+      {!FULL_BLEED_MENUS.includes(activeMenu) && <AppHeader
         menuRef={menuRef}
         menuOpen={menuOpen}
         setMenuOpen={setMenuOpen}
@@ -3100,13 +3252,13 @@ export default function App() {
       {/* Main */}
       <main
         className={
-          ['team-predictions', 'fixtures'].includes(activeMenu)
+          FULL_BLEED_MENUS.includes(activeMenu)
             ? 'w-full'
             : 'app-theme-main max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 pb-32 sm:pb-28'
         }
       >
-        {!['team-predictions', 'fixtures'].includes(activeMenu) && <div ref={messageTopRef} />}
-        {!isLoggedIn && !['team-predictions', 'fixtures'].includes(activeMenu) ? (
+        {!FULL_BLEED_MENUS.includes(activeMenu) && <div ref={messageTopRef} />}
+        {!isLoggedIn && !FULL_BLEED_MENUS.includes(activeMenu) ? (
           <LoginScreen
             onLogin={handleMobileOtpLogin}
             loading={authBusy}
@@ -3228,6 +3380,9 @@ export default function App() {
             loadPredictionDetails={listTeamMatchPredictionDetails}
             loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
             initializePredictionAnalytics={initializeTeamMatchPredictionAnalytics}
+            loadResults={loadLegacyMatchResults}
+            loadLeaderboard={loadLegacyPredictionLeaderboard}
+            refreshLeaderboard={refreshLegacyPredictionLeaderboard}
             isAdmin={isAdminUser}
             authenticatedMobile={authenticatedMobile}
             onPredictionIdentity={handleTeamPredictionIdentity}
@@ -3240,9 +3395,43 @@ export default function App() {
         ) : activeMenu === 'fixtures' ? (
           <FixturesScreen
             loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
+            loadResults={loadLegacyMatchResults}
+            onSaveResult={saveLegacyMatchResult}
+            isAdmin={isAdminUser}
             onOpenPredictions={() => setActiveMenu('team-predictions')}
             players={playersDbList}
             rosterPlayerIds={teamRosterPlayerIds}
+            onOpenPlayer={openPlayerProfile}
+          />
+        ) : activeMenu === 'tournament-picks' ? (
+          <TournamentPredictionsScreen
+            tournament={liveSelectedTournament}
+            onSave={saveTournamentPredictions}
+            loadPredictionByMobile={getPredictionByTournamentAndUser}
+            loadPlayerByMobile={loadTeamPredictionPlayerByMobile}
+            publishLegacySummary={publishTournamentPredictionSummary}
+            loadPredictions={listTeamMatchPredictions}
+            loadPredictionDetails={listTeamMatchPredictionDetails}
+            loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
+            initializePredictionAnalytics={initializeTeamMatchPredictionAnalytics}
+            loadLeaderboard={getTeamPredictionLeaderboard}
+            refreshLeaderboard={(id) => refreshTournamentPredictionLeaderboard(id, { force: true })}
+            isAdmin={isAdminUser}
+            authenticatedMobile={authenticatedMobile}
+            onPredictionIdentity={handleTeamPredictionIdentity}
+            busy={predictionSaving}
+            onOpenFixtures={() => setActiveMenu('tournament-fixtures')}
+            onBack={() => setActiveMenu(isLoggedIn ? 'tournaments' : 'login')}
+            players={playersDbList}
+            onOpenPlayer={openPlayerProfile}
+          />
+        ) : activeMenu === 'tournament-fixtures' ? (
+          <TournamentFixturesScreen
+            tournament={liveSelectedTournament}
+            loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
+            onOpenPredictions={() => setActiveMenu('tournament-picks')}
+            onBack={() => setActiveMenu(isLoggedIn ? 'tournaments' : 'login')}
+            players={playersDbList}
             onOpenPlayer={openPlayerProfile}
           />
         ) : activeMenu === 'tournaments' ? (
@@ -3261,6 +3450,8 @@ export default function App() {
             onOpenTournamentSettings={openTournamentSettings}
             onCreateTeamTournament={createTeamMatchTournament}
             creatingTeamTournament={creatingTeamTournament}
+            onOpenTournamentPredictions={openTournamentPicks}
+            onOpenTournamentFixtures={openTournamentFixtures}
             onOpenTournamentFixture={async (id) => {
               await t.loadTournamentById(id);
               setFixtureTournamentId(id);
@@ -4332,13 +4523,13 @@ export default function App() {
         />
       </main>
 
-      {!['team-predictions', 'fixtures'].includes(activeMenu) && (
+      {!FULL_BLEED_MENUS.includes(activeMenu) && (
         <footer className="app-theme-footer max-w-6xl mx-auto px-3 sm:px-4 py-8 pb-28 sm:py-10 md:pb-10 text-xs text-slate-500 dark:text-slate-400 text-center">
           Powered by Whitefeather
         </footer>
       )}
 
-      {isLoggedIn && !['team-predictions', 'fixtures'].includes(activeMenu) && (
+      {isLoggedIn && !FULL_BLEED_MENUS.includes(activeMenu) && (
         <BottomNav activeMenu={activeMenu} onNavigate={handleBottomNav} />
       )}
     </div>

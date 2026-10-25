@@ -3,6 +3,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -1130,8 +1131,19 @@ export async function getPredictionByTournamentAndUser(tournamentId, predictorMo
  * Only the predictor's display name and save time are returned alongside the
  * payload; mobile numbers are not included in the member forecast view.
  */
-export async function listTeamMatchPredictions() {
-  const tournamentId = 'whitefeather-team-predictions-2026';
+// The original SMASHPICKS page stored its entries under this fixed id. The
+// tournament-scoped screens pass the real tournament id instead.
+export const LEGACY_TEAM_PREDICTION_TOURNAMENT_ID = 'whitefeather-team-predictions-2026';
+
+function storedTeamId(value) {
+  return typeof value === 'number' ? value : String(value ?? '').trim();
+}
+
+function hasTeamId(value) {
+  return typeof value === 'number' ? Number.isFinite(value) : String(value ?? '').trim() !== '';
+}
+
+export async function listTeamMatchPredictions(tournamentId = LEGACY_TEAM_PREDICTION_TOURNAMENT_ID) {
   let rows;
 
   if (isMockMode()) {
@@ -1153,8 +1165,8 @@ export async function listTeamMatchPredictions() {
         updated_at: data.updated_at,
         publicSummary: {
           playedCount: Number(data.played_count) || 0,
-          winnerTeamId: Number(data.winner_team_id),
-          runnerUpTeamId: Number(data.runner_up_team_id),
+          winnerTeamId: storedTeamId(data.winner_team_id),
+          runnerUpTeamId: storedTeamId(data.runner_up_team_id),
         },
         payload: {
           kind: 'team-match-predictions',
@@ -1189,8 +1201,7 @@ export async function listTeamMatchPredictions() {
 }
 
 /** List full prediction records for the admin-only detail view. */
-export async function listTeamMatchPredictionDetails() {
-  const tournamentId = 'whitefeather-team-predictions-2026';
+export async function listTeamMatchPredictionDetails(tournamentId = LEGACY_TEAM_PREDICTION_TOURNAMENT_ID) {
   let rows;
 
   if (isMockMode()) {
@@ -1231,13 +1242,12 @@ export async function listTeamMatchPredictionDetails() {
 }
 
 /** Return per-fixture winner and score-range counts without member identities. */
-export async function getTeamMatchPredictionAnalytics() {
-  const tournamentId = 'whitefeather-team-predictions-2026';
+export async function getTeamMatchPredictionAnalytics(tournamentId = LEGACY_TEAM_PREDICTION_TOURNAMENT_ID) {
   if (isFirebaseMode()) {
     await ensureAnonymousAuth();
     const fdb = ensureFirebaseDb('getTeamMatchPredictionAnalytics');
     const snapshot = await getDoc(doc(fdb, 'team_prediction_aggregates', tournamentId));
-    if (!snapshot.exists()) return initializeTeamMatchPredictionAnalytics();
+    if (!snapshot.exists()) return initializeTeamMatchPredictionAnalytics(tournamentId);
     const data = snapshot.data();
     return {
       submissions: Number(data.submissions) || 0,
@@ -1263,10 +1273,9 @@ export async function getTeamMatchPredictionAnalytics() {
 }
 
 /** Reconcile the public aggregate from saved records when an admin opens the page. */
-export async function initializeTeamMatchPredictionAnalytics() {
-  if (!isFirebaseMode()) return getTeamMatchPredictionAnalytics();
+export async function initializeTeamMatchPredictionAnalytics(tournamentId = LEGACY_TEAM_PREDICTION_TOURNAMENT_ID) {
+  if (!isFirebaseMode()) return getTeamMatchPredictionAnalytics(tournamentId);
 
-  const tournamentId = 'whitefeather-team-predictions-2026';
   await ensureAnonymousAuth();
   const fdb = ensureFirebaseDb('initializeTeamMatchPredictionAnalytics');
   const aggregateRef = doc(fdb, 'team_prediction_aggregates', tournamentId);
@@ -1308,16 +1317,16 @@ function aggregateTeamMatchPredictionRows(rows) {
     submissions += 1;
     for (const prediction of Array.isArray(row.payload.predictions) ? row.payload.predictions : []) {
       const fixtureId = String(prediction?.fixtureId || '');
-      const winnerTeamId = Number(prediction?.winnerTeamId);
-      if (!fixtureId || !Number.isFinite(winnerTeamId)) continue;
+      const winnerTeamId = String(prediction?.winnerTeamId ?? '');
+      if (!fixtureId || !winnerTeamId) continue;
       const entry = fixtures[fixtureId] || {
         team1Votes: 0,
         team2Votes: 0,
         team1ScoreRanges: {},
         team2ScoreRanges: {},
       };
-      const side = winnerTeamId === Number(prediction.team1Id) ? 'team1' :
-        winnerTeamId === Number(prediction.team2Id) ? 'team2' : null;
+      const side = winnerTeamId === String(prediction.team1Id ?? '') ? 'team1' :
+        winnerTeamId === String(prediction.team2Id ?? '') ? 'team2' : null;
       if (!side) continue;
       entry[`${side}Votes`] += 1;
       const range = String(prediction.losingScoreRange || '');
@@ -1372,24 +1381,145 @@ function predictionAnalyticsIncrements(previousRows, nextPayload) {
   };
 }
 
+const MOCK_LEADERBOARDS_KEY = 'bfm_mock_prediction_leaderboards';
+const MOCK_RESULTS_KEY = 'bfm_mock_prediction_results';
+
+/**
+ * Match results for the static SMASHPICKS pages, which have no tournament of
+ * their own. Keyed by fixture id: { team1Score, team2Score, updated_at }.
+ */
+export async function getTeamMatchResults(tournamentId = LEGACY_TEAM_PREDICTION_TOURNAMENT_ID) {
+  const tid = String(tournamentId || '').trim();
+  if (!tid) return {};
+  if (isMockMode()) {
+    return readStore(MOCK_RESULTS_KEY, {})[tid] || {};
+  }
+  if (isFirebaseMode()) {
+    const fdb = ensureFirebaseDb('getTeamMatchResults');
+    const snapshot = await getDoc(doc(fdb, 'team_prediction_results', tid));
+    const data = snapshot.exists() ? snapshot.data() : null;
+    return data?.results && typeof data.results === 'object' ? data.results : {};
+  }
+  return {};
+}
+
+/** Admin only (enforced by the caller): record or clear one fixture's result. */
+export async function saveTeamMatchResult(tournamentId, fixtureId, result) {
+  const tid = String(tournamentId || '').trim();
+  const fid = String(fixtureId || '').trim();
+  if (!tid || !fid) throw new Error('[saveTeamMatchResult] Missing tournament or fixture id');
+  const nowIso = new Date().toISOString();
+  const value = result
+    ? {
+        team1Score: Number(result.team1Score),
+        team2Score: Number(result.team2Score),
+        updated_at: nowIso,
+      }
+    : null;
+
+  if (isMockMode()) {
+    const all = readStore(MOCK_RESULTS_KEY, {});
+    const results = { ...(all[tid] || {}) };
+    if (value) results[fid] = value;
+    else delete results[fid];
+    all[tid] = results;
+    writeStore(MOCK_RESULTS_KEY, all);
+    return results;
+  }
+  if (!isFirebaseMode()) {
+    throw new Error('[saveTeamMatchResult] Match results are only supported in Firebase mode');
+  }
+  await ensureAnonymousAuth();
+  const fdb = ensureFirebaseDb('saveTeamMatchResult');
+  await setDoc(
+    doc(fdb, 'team_prediction_results', tid),
+    {
+      tournament_id: tid,
+      results: { [fid]: value ?? deleteField() },
+      updated_at: nowIso,
+    },
+    { merge: true }
+  );
+  return getTeamMatchResults(tid);
+}
+
+/**
+ * Public, identity-safe prediction leaderboard for a tournament: names with
+ * correct-pick counts only. Written by the client that records a result (or
+ * an admin opening the page), read by everyone.
+ */
+export async function getTeamPredictionLeaderboard(tournamentId) {
+  const tid = String(tournamentId || '').trim();
+  if (!tid) return null;
+  if (isMockMode()) {
+    return readStore(MOCK_LEADERBOARDS_KEY, {})[tid] || null;
+  }
+  if (isFirebaseMode()) {
+    const fdb = ensureFirebaseDb('getTeamPredictionLeaderboard');
+    const snapshot = await getDoc(doc(fdb, 'team_prediction_leaderboards', tid));
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data();
+    return {
+      rows: Array.isArray(data.rows) ? data.rows : [],
+      completedCount: Number(data.completed_count) || 0,
+      fixtureCount: Number(data.fixture_count) || 0,
+      resultsSignature: String(data.results_signature || ''),
+      updatedAt: data.updated_at || null,
+    };
+  }
+  return null;
+}
+
+export async function publishTeamPredictionLeaderboard(tournamentId, leaderboard) {
+  const tid = String(tournamentId || '').trim();
+  if (!tid || !leaderboard) return;
+  if (isMockMode()) {
+    const all = readStore(MOCK_LEADERBOARDS_KEY, {});
+    all[tid] = leaderboard;
+    writeStore(MOCK_LEADERBOARDS_KEY, all);
+    return;
+  }
+  if (!isFirebaseMode()) return;
+  await ensureAnonymousAuth();
+  const fdb = ensureFirebaseDb('publishTeamPredictionLeaderboard');
+  await setDoc(doc(fdb, 'team_prediction_leaderboards', tid), sanitizeForFirestore({
+    tournament_id: tid,
+    rows: (leaderboard.rows || []).map((row) => ({
+      id: String(row.id || ''),
+      name: String(row.name || ''),
+      rank: Number(row.rank) || 0,
+      correct: Number(row.correct) || 0,
+      graded: Number(row.graded) || 0,
+      rangeHits: Number(row.rangeHits) || 0,
+      pending: Number(row.pending) || 0,
+      predicted: Number(row.predicted) || 0,
+    })),
+    completed_count: Number(leaderboard.completedCount) || 0,
+    fixture_count: Number(leaderboard.fixtureCount) || 0,
+    results_signature: String(leaderboard.resultsSignature || ''),
+    updated_at: leaderboard.updatedAt || new Date().toISOString(),
+  }));
+}
+
 /** Publish a safe community card for an older private prediction entry. */
 export async function publishTeamPredictionSummary(input) {
   const id = String(input?.id || '').trim();
   const summary = input?.summary;
   if (!id) throw new Error('[publishTeamPredictionSummary] Missing prediction id');
-  if (!summary || !Number.isFinite(Number(summary.winnerTeamId)) ||
-      !Number.isFinite(Number(summary.runnerUpTeamId)) ||
+  if (!summary || !hasTeamId(summary.winnerTeamId) ||
+      !hasTeamId(summary.runnerUpTeamId) ||
       !Number.isFinite(Number(summary.playedCount))) {
     throw new Error('[publishTeamPredictionSummary] Invalid public summary');
   }
+  const tournamentId = String(input?.tournamentId || LEGACY_TEAM_PREDICTION_TOURNAMENT_ID);
 
   await ensureAnonymousAuth();
   const fdb = ensureFirebaseDb('publishTeamPredictionSummary');
   await setDoc(doc(fdb, 'team_prediction_summaries', id), {
-    tournament_id: 'whitefeather-team-predictions-2026',
+    tournament_id: tournamentId,
     predictor_name: String(summary.predictorName || '').trim(),
-    winner_team_id: Number(summary.winnerTeamId),
-    runner_up_team_id: Number(summary.runnerUpTeamId),
+    winner_team_id: storedTeamId(summary.winnerTeamId),
+    runner_up_team_id: storedTeamId(summary.runnerUpTeamId),
     played_count: Number(summary.playedCount),
     updated_at: new Date().toISOString(),
   });
@@ -1447,18 +1577,22 @@ export async function savePrediction(input) {
     );
     const snap = await getDocs(q);
     const publicSummary = input?.publicSummary;
+    const isCommunityPrediction =
+      tid === LEGACY_TEAM_PREDICTION_TOURNAMENT_ID || payload?.kind === 'team-match-predictions';
     const shouldPublishSummary =
-      tid === 'whitefeather-team-predictions-2026' &&
+      isCommunityPrediction &&
       publicSummary &&
-      Number.isFinite(Number(publicSummary.winnerTeamId)) &&
-      Number.isFinite(Number(publicSummary.runnerUpTeamId)) &&
+      hasTeamId(publicSummary.winnerTeamId) &&
+      hasTeamId(publicSummary.runnerUpTeamId) &&
       Number.isFinite(Number(publicSummary.playedCount));
 
-    if (tid === 'whitefeather-team-predictions-2026') {
+    if (isCommunityPrediction) {
       const stablePredictionRef = doc(
         fdb,
         'predictions',
-        `team-prediction-${encodeURIComponent(mobile)}`
+        tid === LEGACY_TEAM_PREDICTION_TOURNAMENT_ID
+          ? `team-prediction-${encodeURIComponent(mobile)}`
+          : `team-prediction-${encodeURIComponent(tid)}-${encodeURIComponent(mobile)}`
       );
       const aggregateRef = doc(fdb, 'team_prediction_aggregates', tid);
       const candidateRefs = [
@@ -1504,8 +1638,8 @@ export async function savePrediction(input) {
           transaction.set(doc(fdb, 'team_prediction_summaries', predictionRef.id), {
             tournament_id: tid,
             predictor_name: String(publicSummary.predictorName || '').trim(),
-            winner_team_id: Number(publicSummary.winnerTeamId),
-            runner_up_team_id: Number(publicSummary.runnerUpTeamId),
+            winner_team_id: storedTeamId(publicSummary.winnerTeamId),
+            runner_up_team_id: storedTeamId(publicSummary.runnerUpTeamId),
             played_count: Number(publicSummary.playedCount),
             updated_at: nowIso,
           });
@@ -1550,8 +1684,8 @@ export async function savePrediction(input) {
       batch.set(doc(fdb, 'team_prediction_summaries', predictionId), {
         tournament_id: tid,
         predictor_name: String(publicSummary.predictorName || '').trim(),
-        winner_team_id: Number(publicSummary.winnerTeamId),
-        runner_up_team_id: Number(publicSummary.runnerUpTeamId),
+        winner_team_id: storedTeamId(publicSummary.winnerTeamId),
+        runner_up_team_id: storedTeamId(publicSummary.runnerUpTeamId),
         played_count: Number(publicSummary.playedCount),
         updated_at: nowIso,
       });

@@ -449,3 +449,126 @@
     white-space: nowrap;
   }
 }
+
+/* --- Tournament-scoped fixtures (live data) --- */
+.fixtures-loading {
+  padding: 40px 0;
+  color: #a6c0ba;
+  text-align: center;
+  font-size: 13px;
+}
+
+.fixture-status {
+  border: 1px solid #3a5b4b;
+  border-radius: 20px;
+  padding: 4px 8px;
+  color: #a6c0ba;
+  background: #13302d;
+  white-space: nowrap;
+}
+
+.fixture-status.is-live {
+  border-color: #7a5a2a;
+  color: #ffb86b;
+  background: #3a2a14;
+}
+
+.fixture-status.is-final {
+  color: #c5f36b;
+}
+
+.fixture-card-title > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fixture-vs.is-score {
+  color: #eff8f3;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.fixture-team.is-winner > span::after {
+  content: ' · WON';
+  color: #c5f36b;
+}
+
+/* --- Admin result entry on the static fixtures page --- */
+.fixture-card-side {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fixture-result-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 6px;
+  border-top: 1px dashed #294746;
+  padding-top: 9px;
+}
+
+.fixture-result-form label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  color: #a6c0ba;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.fixture-result-form label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fixture-result-form input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #355452;
+  border-radius: 8px;
+  padding: 0 8px;
+  color: #eff8f3;
+  background: #0d2223;
+  font: inherit;
+  font-size: 13px;
+}
+
+.fixture-result-form button {
+  height: 34px;
+  border: 1px solid #355452;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #dcebe6;
+  background: #102728;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.fixture-result-form button.primary {
+  border-color: #c5f36b;
+  color: #10251f;
+  background: #c5f36b;
+}
+
+.fixture-result-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.fixture-result-error {
+  color: #ffd2d8;
+  font-size: 11px;
+}
+
+.fixture-result-note {
+  color: #a6c0ba;
+  font-size: 11px;
+}

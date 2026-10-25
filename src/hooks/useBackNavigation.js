@@ -21,6 +21,11 @@ const MENU_TO_PATH = {
   login: '/login',
 };
 
+// Screens reachable without logging in (shareable SMASHPICKS pages).
+export const PUBLIC_MENUS = ['team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures', 'player-stats'];
+// Screens that need a tournament loaded before they can render.
+export const TOURNAMENT_MENUS = ['tournament', 'tournament-settings', 'tournaments', 'tournament-picks', 'tournament-fixtures'];
+
 const keyOf = (nav) =>
   `${nav.activeMenu}|${nav.tournamentView || 'list'}|${nav.selectedTournamentId || ''}|${nav.playerStatsId || ''}`;
 
@@ -31,6 +36,8 @@ export function navToPath(nav) {
   }
   if (nav.activeMenu === 'tournament' && tid) return `/tournament/${tid}`;
   if (nav.activeMenu === 'tournament-settings' && tid) return `/tournament/${tid}/settings`;
+  if (nav.activeMenu === 'tournament-picks' && tid) return `/tournament/${tid}/predictions`;
+  if (nav.activeMenu === 'tournament-fixtures' && tid) return `/tournament/${tid}/fixtures`;
   if (nav.activeMenu === 'tournaments' && tid) {
     if (nav.tournamentView === 'matches') return `/tournament/${tid}/matches`;
     if (nav.tournamentView === 'points') return `/tournament/${tid}/points`;
@@ -56,7 +63,7 @@ export function pathToNav(pathname) {
   if (clean === '/tournament-predictions') {
     return { activeMenu: 'predictions', tournamentView: 'list', selectedTournamentId: null };
   }
-  const m = clean.match(/^\/tournament\/([^/]+)(?:\/(settings|matches|points|match))?$/);
+  const m = clean.match(/^\/tournament\/([^/]+)(?:\/(settings|matches|points|match|predictions|fixtures))?$/);
   if (m) {
     const selectedTournamentId = m[1];
     switch (m[2]) {
@@ -68,6 +75,10 @@ export function pathToNav(pathname) {
         return { activeMenu: 'tournaments', tournamentView: 'points', selectedTournamentId };
       case 'match':
         return { activeMenu: 'tournaments', tournamentView: 'match', selectedTournamentId };
+      case 'predictions':
+        return { activeMenu: 'tournament-picks', tournamentView: 'list', selectedTournamentId };
+      case 'fixtures':
+        return { activeMenu: 'tournament-fixtures', tournamentView: 'list', selectedTournamentId };
       default:
         return { activeMenu: 'tournament', tournamentView: 'list', selectedTournamentId };
     }
@@ -105,7 +116,7 @@ export function useBackNavigation({
   // multi-setState navigation (e.g. set tournament + set menu) produces one
   // history entry, not several.
   useEffect(() => {
-    const publicMenus = ['team-predictions', 'fixtures', 'player-stats'];
+    const publicMenus = PUBLIC_MENUS;
     if (!isLoggedIn && !publicMenus.includes(activeMenu)) return undefined;
     if (restoringRef.current) {
       restoringRef.current = false;
@@ -136,11 +147,11 @@ export function useBackNavigation({
   useEffect(() => {
     async function onPop(event) {
       const nav = event.state?.appNav;
-      const publicMenus = ['team-predictions', 'fixtures', 'player-stats'];
+      const publicMenus = PUBLIC_MENUS;
       if (!nav || (!isLoggedIn && !publicMenus.includes(nav.activeMenu))) return;
       const tid = nav.selectedTournamentId || null;
       const needsTournament =
-        tid && ['tournament', 'tournament-settings', 'tournaments'].includes(nav.activeMenu);
+        tid && TOURNAMENT_MENUS.includes(nav.activeMenu);
       let loaded;
       if (needsTournament && selectedTournament?.id !== tid) {
         try {
