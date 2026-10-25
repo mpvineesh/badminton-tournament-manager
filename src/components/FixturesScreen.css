@@ -1,6 +1,7 @@
 .fixtures-page {
   min-height: 100vh;
-  padding: 16px 18px 40px;
+  /* Keep the nav clear of the status bar / notch in installed (standalone) mode. */
+  padding: calc(16px + env(safe-area-inset-top, 0px)) calc(18px + env(safe-area-inset-right, 0px)) 40px calc(18px + env(safe-area-inset-left, 0px));
   color: #edf7f5;
   background: #071719;
 }
@@ -355,7 +356,7 @@
 
 @media (max-width: 600px) {
   .fixtures-page {
-    padding: 10px 12px 28px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 28px calc(12px + env(safe-area-inset-left, 0px));
   }
 
   .fixtures-heading {

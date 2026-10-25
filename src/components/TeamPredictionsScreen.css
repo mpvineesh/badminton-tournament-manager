@@ -45,7 +45,8 @@
 .smash-picks-shell {
   width: min(100%, 1160px);
   margin: 0 auto;
-  padding: 24px 22px 110px;
+  /* Keep the nav clear of the status bar / notch in installed (standalone) mode. */
+  padding: calc(24px + env(safe-area-inset-top, 0px)) calc(22px + env(safe-area-inset-right, 0px)) 110px calc(22px + env(safe-area-inset-left, 0px));
 }
 
 .smash-nav,
@@ -1346,7 +1347,7 @@
   }
 
   .smash-picks-shell {
-    padding: 18px 15px 110px;
+    padding: calc(18px + env(safe-area-inset-top, 0px)) calc(15px + env(safe-area-inset-right, 0px)) 110px calc(15px + env(safe-area-inset-left, 0px));
   }
 
   .smash-nav {
@@ -1380,7 +1381,7 @@
 
 @media (max-width: 570px) {
   .smash-picks-shell {
-    padding: 13px 10px 102px;
+    padding: calc(13px + env(safe-area-inset-top, 0px)) calc(10px + env(safe-area-inset-right, 0px)) 102px calc(10px + env(safe-area-inset-left, 0px));
   }
 
   .smash-nav {
