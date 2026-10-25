@@ -661,6 +661,7 @@ export default function TournamentPredictionsScreen({
               </p>
             </section>
 
+            {leaderboardOpen && (
             <section className="smash-forecast" aria-labelledby="leaderboard-title">
               <div className="smash-forecast-head">
                 <div>
@@ -670,22 +671,16 @@ export default function TournamentPredictionsScreen({
                     One point for every correctly predicted winner. Ties are split by correct losing-score brackets, then by who submitted first.
                   </p>
                 </div>
-                {leaderboardOpen && (
-                  <button
-                    type="button"
-                    className="smash-mini-button"
-                    onClick={fetchLeaderboard}
-                    disabled={leaderboardLoading}
-                  >
-                    {leaderboardLoading ? 'Refreshing…' : '↻ Refresh'}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="smash-mini-button"
+                  onClick={fetchLeaderboard}
+                  disabled={leaderboardLoading}
+                >
+                  {leaderboardLoading ? 'Refreshing…' : '↻ Refresh'}
+                </button>
               </div>
-              {!leaderboardOpen ? (
-                <div className="smash-members-message">
-                  The leaderboard opens on tournament day{formatEventDate(model.eventDate) ? `, ${formatEventDate(model.eventDate)}` : ''}. Until then, keep your picks coming.
-                </div>
-              ) : leaderboardError ? (
+              {leaderboardError ? (
                 <div className="smash-members-message error" role="alert">
                   <span>{leaderboardError}</span>
                   <button type="button" onClick={fetchLeaderboard} disabled={leaderboardLoading}>Try again</button>
@@ -726,6 +721,7 @@ export default function TournamentPredictionsScreen({
                 </div>
               )}
             </section>
+            )}
 
             <section className="smash-member-results" aria-labelledby="member-results-title">
               <div className="smash-member-results-head">
