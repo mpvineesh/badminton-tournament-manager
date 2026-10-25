@@ -94,79 +94,57 @@ function writeSkippedMatchKeys(storageKey, keys) {
 // Skipped matches are pushed to the back of the queue (in the order they were
 // skipped) rather than hidden, so they resurface once everything else is done.
 function getRecommendedCourtMatches(matches, teamsById, skippedKeys = []) {
+  const all = matches || [];
+  const liveMatches = all.filter((m) => m?.status === 'Live');
+  const upcoming = all.filter(isUpcomingMatch);
+  const liveCount = liveMatches.length;
+  if (upcoming.length === 0) return { court1: null, court2: null, liveCount };
+
   const skipRank = (match) => skippedKeys.indexOf(getMatchKey(match));
 
-  const recommendFromUpcoming = (upcomingMatches) => {
-    const upcoming = (upcomingMatches || []).filter(
-      (m) => m?.status === 'Pending' || m?.status === 'Upcoming' || !m?.status
-    );
-    if (upcoming.length === 0) return { court1: null, court2: null };
+  // Players currently on court cannot start another match right now.
+  const busyPlayers = new Set(liveMatches.flatMap((m) => getMatchPlayers(m, teamsById)));
+  // Players who just finished get a breather when an alternative exists.
+  const recentlyCompleted = all.find((m) => m?.status === 'Completed') || null;
+  const recentPlayers = new Set(
+    recentlyCompleted ? getMatchPlayers(recentlyCompleted, teamsById) : []
+  );
 
-    const recentlyPlayedMatch =
-      (matches || []).find((m) => m?.status === 'Live') ||
-      (matches || []).find((m) => m?.status === 'Completed') ||
-      null;
-    const recentPlayers = new Set(
-      recentlyPlayedMatch ? getMatchPlayers(recentlyPlayedMatch, teamsById) : []
-    );
-
-    const withMeta = upcoming.map((m) => {
-      const players = getMatchPlayers(m, teamsById);
-      const overlapWithRecent = players.filter((pid) => recentPlayers.has(pid)).length;
-      return { match: m, players, overlapWithRecent };
-    });
-
-    withMeta.sort((a, b) => {
-      const skipDiff = skipRank(a.match) - skipRank(b.match);
-      if (skipDiff !== 0) return skipDiff;
-      if (a.overlapWithRecent !== b.overlapWithRecent) {
-        return a.overlapWithRecent - b.overlapWithRecent;
-      }
-      return String(a.match?.label || '').localeCompare(String(b.match?.label || ''));
-    });
-
-    const court1Meta = withMeta[0] || null;
-    if (!court1Meta) return { court1: null, court2: null };
-
-    const court1Players = new Set(court1Meta.players);
-    const candidates = withMeta.filter((item) => item.match?.id !== court1Meta.match?.id);
-    const firstNonOverlapping = (items) =>
-      items.find((item) => item.players.every((pid) => !court1Players.has(pid)));
-    // Prefer matches nobody skipped; fall back to skipped ones only when needed.
-    const nonOverlapping =
-      firstNonOverlapping(candidates.filter((item) => skipRank(item.match) === -1)) ||
-      firstNonOverlapping(candidates);
-    const fallbackSecond = candidates[0] || null;
+  const withMeta = upcoming.map((m) => {
+    const players = getMatchPlayers(m, teamsById);
     return {
-      court1: court1Meta.match,
-      court2: (nonOverlapping || fallbackSecond)?.match || null,
+      match: m,
+      players,
+      busyOverlap: players.filter((pid) => busyPlayers.has(pid)).length,
+      overlapWithRecent: players.filter((pid) => recentPlayers.has(pid)).length,
     };
-  };
+  });
 
-  const liveMatches = (matches || []).filter((m) => m?.status === 'Live').slice(0, 2);
-  if (liveMatches.length === 2) {
-    return { court1: liveMatches[0], court2: liveMatches[1], liveCount: 2 };
-  }
-  if (liveMatches.length === 1) {
-    const remainingUpcoming = (matches || []).filter(
-      (m) =>
-        (m?.status === 'Pending' || m?.status === 'Upcoming' || !m?.status) &&
-        m?.id !== liveMatches[0]?.id
-    );
-    const upcomingRecommendation = recommendFromUpcoming(remainingUpcoming);
-    return {
-      court1: liveMatches[0],
-      court2: upcomingRecommendation.court1 || upcomingRecommendation.court2 || null,
-      liveCount: 1,
-    };
-  }
+  // Skipped matches are pushed to the back of the queue (in the order they were
+  // skipped) rather than hidden, so they resurface once everything else is done.
+  withMeta.sort((a, b) => {
+    const skipDiff = skipRank(a.match) - skipRank(b.match);
+    if (skipDiff !== 0) return skipDiff;
+    if (a.busyOverlap !== b.busyOverlap) return a.busyOverlap - b.busyOverlap;
+    if (a.overlapWithRecent !== b.overlapWithRecent) {
+      return a.overlapWithRecent - b.overlapWithRecent;
+    }
+    return String(a.match?.label || '').localeCompare(String(b.match?.label || ''));
+  });
 
-  const upcomingRecommendation = recommendFromUpcoming(matches);
-  return {
-    court1: upcomingRecommendation.court1,
-    court2: upcomingRecommendation.court2,
-    liveCount: 0,
-  };
+  const court1Meta = withMeta[0];
+  const court1Players = new Set(court1Meta.players);
+  const candidates = withMeta.filter((item) => getMatchKey(item.match) !== getMatchKey(court1Meta.match));
+  const firstNonOverlapping = (items) =>
+    items.find((item) => item.players.every((pid) => !court1Players.has(pid)));
+  // Prefer matches nobody skipped; fall back to skipped ones only when needed.
+  const court2Meta =
+    firstNonOverlapping(candidates.filter((item) => skipRank(item.match) === -1)) ||
+    firstNonOverlapping(candidates) ||
+    candidates[0] ||
+    null;
+
+  return { court1: court1Meta.match, court2: court2Meta?.match || null, liveCount };
 }
 
 function getCompletedResult(tournament, teamsById) {
@@ -376,7 +354,7 @@ export default function TournamentDetailsScreen({
         </div>
         <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           {recommendedCourts.liveCount > 0
-            ? 'Live matches are shown first (up to 2 courts). Remaining slots use recommendation.'
+            ? `${recommendedCourts.liveCount} match${recommendedCourts.liveCount === 1 ? '' : 'es'} in progress (see above). Suggestions below avoid players currently on court.`
             : 'Recommendation avoids continuous matches for same players when possible.'}
           {' '}Skip a match if its players are unavailable; it moves to the back of the queue and the next match is shown.
         </div>
