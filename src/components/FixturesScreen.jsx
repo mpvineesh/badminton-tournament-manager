@@ -321,15 +321,15 @@ export default function FixturesScreen({
                   error={Boolean(analyticsError)}
                   compact={view === 'list'}
                 />
-                {isAdmin && onSaveResult && (
-                  <ResultEditor
-                    fixture={fixture}
-                    result={result}
-                    onSave={saveResult}
-                    busy={savingFixtureId === fixture.id}
-                  />
-                )}
               </div>
+              {isAdmin && onSaveResult && (
+                <ResultEditor
+                  fixture={fixture}
+                  result={result}
+                  onSave={saveResult}
+                  busy={savingFixtureId === fixture.id}
+                />
+              )}
             </article>
             );
           })}

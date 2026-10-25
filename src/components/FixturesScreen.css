@@ -572,3 +572,19 @@
   color: #a6c0ba;
   font-size: 11px;
 }
+
+/* In list view the card is a 3-column grid; the editor takes a full-width row beneath. */
+.fixtures-grid.is-list .fixture-result-form {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+}
+
+@media (max-width: 600px) {
+  .fixture-result-form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .fixture-result-form button {
+    width: 100%;
+  }
+}
