@@ -64,7 +64,38 @@ function withWinnerTrophy(match, side, label) {
   return isWinner ? `🏆 ${label}` : label;
 }
 
-function getRecommendedCourtMatches(matches, teamsById) {
+function getMatchKey(match) {
+  return `${match?.stage || ''}:${match?.id || ''}`;
+}
+
+function isUpcomingMatch(match) {
+  return match?.status === 'Pending' || match?.status === 'Upcoming' || !match?.status;
+}
+
+function readSkippedMatchKeys(storageKey) {
+  if (!storageKey) return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((key) => typeof key === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSkippedMatchKeys(storageKey, keys) {
+  if (!storageKey) return;
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify(keys));
+  } catch {
+    // Storage is a convenience only; the in-memory state still drives the UI.
+  }
+}
+
+// Skipped matches are pushed to the back of the queue (in the order they were
+// skipped) rather than hidden, so they resurface once everything else is done.
+function getRecommendedCourtMatches(matches, teamsById, skippedKeys = []) {
+  const skipRank = (match) => skippedKeys.indexOf(getMatchKey(match));
+
   const recommendFromUpcoming = (upcomingMatches) => {
     const upcoming = (upcomingMatches || []).filter(
       (m) => m?.status === 'Pending' || m?.status === 'Upcoming' || !m?.status
@@ -86,6 +117,8 @@ function getRecommendedCourtMatches(matches, teamsById) {
     });
 
     withMeta.sort((a, b) => {
+      const skipDiff = skipRank(a.match) - skipRank(b.match);
+      if (skipDiff !== 0) return skipDiff;
       if (a.overlapWithRecent !== b.overlapWithRecent) {
         return a.overlapWithRecent - b.overlapWithRecent;
       }
@@ -96,13 +129,14 @@ function getRecommendedCourtMatches(matches, teamsById) {
     if (!court1Meta) return { court1: null, court2: null };
 
     const court1Players = new Set(court1Meta.players);
-    const nonOverlapping = withMeta.find(
-      (item) =>
-        item.match?.id !== court1Meta.match?.id &&
-        item.players.every((pid) => !court1Players.has(pid))
-    );
-    const fallbackSecond =
-      withMeta.find((item) => item.match?.id !== court1Meta.match?.id) || null;
+    const candidates = withMeta.filter((item) => item.match?.id !== court1Meta.match?.id);
+    const firstNonOverlapping = (items) =>
+      items.find((item) => item.players.every((pid) => !court1Players.has(pid)));
+    // Prefer matches nobody skipped; fall back to skipped ones only when needed.
+    const nonOverlapping =
+      firstNonOverlapping(candidates.filter((item) => skipRank(item.match) === -1)) ||
+      firstNonOverlapping(candidates);
+    const fallbackSecond = candidates[0] || null;
     return {
       court1: court1Meta.match,
       court2: (nonOverlapping || fallbackSecond)?.match || null,
@@ -200,6 +234,12 @@ export default function TournamentDetailsScreen({
   onOpenPoints,
   onTrackCurrentMatch,
 }) {
+  const skipStorageKey = tournament?.id ? `bfm_skipped_matches_${tournament.id}` : '';
+  const [skippedKeys, setSkippedKeys] = React.useState(() => readSkippedMatchKeys(skipStorageKey));
+  React.useEffect(() => {
+    setSkippedKeys(readSkippedMatchKeys(skipStorageKey));
+  }, [skipStorageKey]);
+
   if (!tournament) {
     return (
       <section className="rounded-xl border bg-white dark:bg-navy-900 p-4">
@@ -210,6 +250,23 @@ export default function TournamentDetailsScreen({
 
   const teamsById = Object.fromEntries((tournament.teams || []).map((tm) => [tm.id, tm]));
   const matches = getTournamentMatches(tournament);
+  // Ignore skips for matches that have since started or finished.
+  const upcomingKeys = new Set(matches.filter(isUpcomingMatch).map(getMatchKey));
+  const activeSkippedKeys = skippedKeys.filter((key) => upcomingKeys.has(key));
+
+  function updateSkippedKeys(next) {
+    setSkippedKeys(next);
+    writeSkippedMatchKeys(skipStorageKey, next);
+  }
+
+  function skipMatch(match) {
+    const key = getMatchKey(match);
+    updateSkippedKeys([...activeSkippedKeys.filter((k) => k !== key), key]);
+  }
+
+  function clearSkipped() {
+    updateSkippedKeys([]);
+  }
   const currentMatch = getCurrentMatch(matches);
   const currentRef = currentMatch ? { stage: currentMatch.stage, id: currentMatch.id } : null;
   const teamA = currentMatch ? teamsById[currentMatch.teamAId || '']?.name || 'TBD' : '-';
@@ -220,7 +277,7 @@ export default function TournamentDetailsScreen({
   const teamBDisplay = currentMatch
     ? withWinnerTrophy(currentMatch, 'B', currentMatch.teamBDisplay || teamB)
     : '-';
-  const recommendedCourts = getRecommendedCourtMatches(matches, teamsById);
+  const recommendedCourts = getRecommendedCourtMatches(matches, teamsById, activeSkippedKeys);
   const completedResult = getCompletedResult(tournament, teamsById);
 
   return (
@@ -309,11 +366,19 @@ export default function TournamentDetailsScreen({
       </div>
 
       <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-4 shadow-sm">
-        <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Recommended Upcoming Matches</div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-200">Recommended Upcoming Matches</div>
+          {activeSkippedKeys.length > 0 && (
+            <button type="button" className="btn-ghost text-xs" onClick={clearSkipped}>
+              Show skipped again ({activeSkippedKeys.length})
+            </button>
+          )}
+        </div>
         <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           {recommendedCourts.liveCount > 0
             ? 'Live matches are shown first (up to 2 courts). Remaining slots use recommendation.'
             : 'Recommendation avoids continuous matches for same players when possible.'}
+          {' '}Skip a match if its players are unavailable; it moves to the back of the queue and the next match is shown.
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {[['Court 1', recommendedCourts.court1], ['Court 2', recommendedCourts.court2]].map(
@@ -330,6 +395,23 @@ export default function TournamentDetailsScreen({
                       <span className="text-slate-400">vs</span>{' '}
                       {withWinnerTrophy(match, 'B', getDisplayName(match, teamsById, 'B'))}
                     </div>
+                    {isUpcomingMatch(match) && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {activeSkippedKeys.includes(getMatchKey(match)) && (
+                          <span className="text-xs text-amber-700 dark:text-amber-400">
+                            Skipped earlier · no other match left
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          className="btn-ghost text-xs"
+                          aria-label={`Skip ${match.label || 'match'} for now`}
+                          onClick={() => skipMatch(match)}
+                        >
+                          Skip for now
+                        </button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
