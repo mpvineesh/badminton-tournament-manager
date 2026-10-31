@@ -85,7 +85,7 @@ function MatchCard({ fixture, scoreRanges, pick, userPick, locked, disabled = fa
           disabled={locked || disabled}
         >
           <strong>{team1Players}</strong>
-          {pick.winner === 0 && <small>{locked ? '✓ WON' : '✓ WINNER'}</small>}
+          {pick.winner === 0 && <small>{locked ? '✓ WON' : '✓ WINNER · tap again to clear'}</small>}
         </button>
         <span className="smash-vs">{locked && hasScore ? `${fixture.scoreA}–${fixture.scoreB}` : 'VS'}</span>
         <button
@@ -96,7 +96,7 @@ function MatchCard({ fixture, scoreRanges, pick, userPick, locked, disabled = fa
           disabled={locked || disabled}
         >
           <strong>{team2Players}</strong>
-          {pick.winner === 1 && <small>{locked ? '✓ WON' : '✓ WINNER'}</small>}
+          {pick.winner === 1 && <small>{locked ? '✓ WON' : '✓ WINNER · tap again to clear'}</small>}
         </button>
       </div>
       {locked ? (
@@ -895,7 +895,7 @@ export default function TournamentPredictionsScreen({
                 </div>
               </div>
               <p className="smash-notice">
-                Fixtures come straight from the tournament schedule and update as matches are played.
+                Fixtures come straight from the tournament schedule and update as matches are played. Tap a side to pick the winner, and tap it again to clear your pick.
                 {scoreRanges.length > 0 ? ' Losing-team score ranges are optional and follow the tournament’s bonus rules.' : ''}
                 {completedCount > 0 ? ` ${completedCount} ${completedCount === 1 ? 'match has' : 'matches have'} finished and can no longer be changed.` : ''}
               </p>
@@ -918,7 +918,7 @@ export default function TournamentPredictionsScreen({
                       disabled={!submissionOpen}
                       userPick={picks[fixture.id]}
                       pick={locked || picks[fixture.id] || EMPTY_PICK}
-                      onPick={(winner) => updatePick(fixture.id, { winner })}
+                      onPick={(winner) => updatePick(fixture.id, { winner: picks[fixture.id]?.winner === winner ? undefined : winner })}
                       onRange={(range) => updatePick(fixture.id, { range: picks[fixture.id]?.range === range ? null : range })}
                       onToggleScore={() => updatePick(fixture.id, { open: !picks[fixture.id]?.open })}
                     />
