@@ -252,7 +252,7 @@ function MatchCard({ fixture, players, rosterPlayerIds, pick, userPick, locked =
           disabled={locked || disabled}
         >
           <strong>{team1Players}</strong>
-          {pick.winner === 0 && <small>{locked ? '✓ WON' : '✓ WINNER · tap again to clear'}</small>}
+          {pick.winner === 0 && <small>{locked ? '✓ WON' : '✓ WINNER'}</small>}
         </button>
         <span className="smash-vs">{result ? `${result.team1Score}–${result.team2Score}` : 'VS'}</span>
         <button
@@ -263,7 +263,7 @@ function MatchCard({ fixture, players, rosterPlayerIds, pick, userPick, locked =
           disabled={locked || disabled}
         >
           <strong>{team2Players}</strong>
-          {pick.winner === 1 && <small>{locked ? '✓ WON' : '✓ WINNER · tap again to clear'}</small>}
+          {pick.winner === 1 && <small>{locked ? '✓ WON' : '✓ WINNER'}</small>}
         </button>
       </div>
       {locked && (
@@ -1056,7 +1056,7 @@ export default function TeamPredictionsScreen({
             </div>
           </div>
           <p className="smash-notice">
-            Fixtures are generated from the team pairings in the tournament rules: A+B, A+C, B+D and C+E. Each team matchup includes all four pairings. Tap a side to pick the winner, and tap it again to clear your pick. Losing-team score ranges are optional.
+            Fixtures are generated from the team pairings in the tournament rules: A+B, A+C, B+D and C+E. Each team matchup includes all four pairings. Losing-team score ranges are optional.
             {completedCount > 0 ? ` ${completedCount} ${completedCount === 1 ? 'match has' : 'matches have'} finished and can no longer be changed.` : ''}
           </p>
           <p className="smash-notice">
