@@ -1833,3 +1833,25 @@
   justify-content: center;
   margin-top: 12px;
 }
+
+/* Admin detailed predictions: collapsed by default. */
+.smash-admin-summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.smash-admin-summary::-webkit-details-marker {
+  display: none;
+}
+
+.smash-admin-summary .smash-admin-total i {
+  display: inline-block;
+  margin-left: 4px;
+  font-style: normal;
+  transition: transform 0.15s;
+}
+
+.smash-admin-collapsible[open] .smash-admin-summary .smash-admin-total i {
+  transform: rotate(180deg);
+}

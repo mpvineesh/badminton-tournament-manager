@@ -797,13 +797,14 @@ export default function TournamentPredictionsScreen({
 
             {isAdmin && (
               <section className="smash-admin-predictions" aria-labelledby="admin-predictions-title">
-                <div className="smash-section-title">
+                <details className="smash-admin-collapsible">
+                <summary className="smash-section-title smash-admin-summary">
                   <div>
                     <h2 id="admin-predictions-title">Admin · detailed predictions</h2>
-                    <p className="smash-muted">Select a member to review their individual match picks.</p>
+                    <p className="smash-muted">Tap to expand, then select a member to review their individual match picks.</p>
                   </div>
-                  <span className="smash-admin-total">{adminEntries.length} members</span>
-                </div>
+                  <span className="smash-admin-total">{adminEntries.length} members <i aria-hidden="true">⌄</i></span>
+                </summary>
                 {adminError ? (
                   <div className="smash-members-message error" role="alert">{adminError}</div>
                 ) : adminLoading ? (
@@ -868,6 +869,7 @@ export default function TournamentPredictionsScreen({
                     })}
                   </div>
                 )}
+                </details>
               </section>
             )}
 
