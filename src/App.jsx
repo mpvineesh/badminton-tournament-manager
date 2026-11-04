@@ -31,6 +31,7 @@ import PredictionsScreen from './components/PredictionsScreen.jsx';
 import TeamPredictionsScreen from './components/TeamPredictionsScreen.jsx';
 import TournamentPredictionsScreen from './components/TournamentPredictionsScreen.jsx';
 import TournamentFixturesScreen from './components/TournamentFixturesScreen.jsx';
+import TvDisplayScreen from './components/TvDisplayScreen.jsx';
 import {
   buildLeaderboard,
   buildPredictionModel,
@@ -80,6 +81,7 @@ import {
   getPredictionByTournamentAndUser,
   publishTeamPredictionSummary,
   getTeamPredictionLeaderboard,
+  subscribeTeamPredictionLeaderboard,
   publishTeamPredictionLeaderboard,
   getTeamMatchResults,
   saveTeamMatchResult,
@@ -136,9 +138,9 @@ export default function App() {
   const AUTH_MOBILE_KEY = 'tm_logged_mobile';
   const ACTIVE_MENU_KEY = 'tm_active_menu';
   // Screens that draw their own SMASHPICKS chrome instead of the app header/nav.
-  const FULL_BLEED_MENUS = ['team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures'];
+  const FULL_BLEED_MENUS = ['team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures', 'tv'];
   // Tournament-scoped SMASHPICKS screens that are shareable without logging in.
-  const PUBLIC_TOURNAMENT_MENUS = ['tournament-picks', 'tournament-fixtures'];
+  const PUBLIC_TOURNAMENT_MENUS = ['tournament-picks', 'tournament-fixtures', 'tv'];
   const RESTORABLE_MENUS = new Set([
     'home',
     'fixture',
@@ -322,7 +324,7 @@ export default function App() {
         setActiveMenu(urlNav.activeMenu);
       } else {
         setActiveMenu(
-          ['team-predictions', 'fixtures'].includes(urlNav?.activeMenu)
+          ['team-predictions', 'fixtures', 'tv'].includes(urlNav?.activeMenu)
             ? urlNav.activeMenu
             : 'login'
         );
@@ -350,7 +352,8 @@ export default function App() {
       activeMenu === 'tournament-fixtures' ||
       activeMenu === 'predictions' ||
       activeMenu === 'player-stats' ||
-      activeMenu === 'scoreboard'
+      activeMenu === 'scoreboard' ||
+      activeMenu === 'tv'
     ) {
       refreshTournamentsList();
     }
@@ -358,9 +361,11 @@ export default function App() {
 
   // Keep the tournaments list live so the scoreboard and home reflect ongoing
   // matches without a manual refresh (real-time in firebase mode, polling
-  // otherwise). Also feeds match notifications (see notification effect).
+  // otherwise). Also feeds match notifications (see notification effect). The
+  // TV dashboard is public, so it keeps the feed open without a login too.
+  const needsLiveTournaments = isLoggedIn || activeMenu === 'tv';
   useEffect(() => {
-    if (!isLoggedIn) return undefined;
+    if (!needsLiveTournaments) return undefined;
     const unsubscribe = subscribeTournaments((rows, err) => {
       if (err) {
         console.error(err);
@@ -384,7 +389,7 @@ export default function App() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoggedIn]);
+  }, [needsLiveTournaments]);
 
   useEffect(() => {
     if (activeMenu !== 'fixtures' && activeMenu !== 'team-predictions') return undefined;
@@ -1317,6 +1322,15 @@ export default function App() {
   }
   const openTournamentPicks = (id) => openTournamentSmashPicks(id, 'tournament-picks');
   const openTournamentFixtures = (id) => openTournamentSmashPicks(id, 'tournament-fixtures');
+  // Pins the TV dashboard to one tournament (URL: /tournament/<id>/tv).
+  const openTournamentTv = (id) => openTournamentSmashPicks(id, 'tv');
+  // Unpinned TV dashboard: follows whichever tournament is live (URL: /tv).
+  function openTvDisplay() {
+    setSelectedTournament(null);
+    setSelectedMatchRef(null);
+    setTournamentView('list');
+    setActiveMenu('tv');
+  }
 
   async function saveTournamentSettings(updates) {
     if (!isAdminUser) {
@@ -3349,6 +3363,7 @@ export default function App() {
             loading={tournamentsLoading}
             error={tournamentsError}
             onRefresh={refreshTournamentsList}
+            onOpenTvDisplay={openTvDisplay}
           />
         ) : activeMenu === 'profile' ? (
           <ProfileScreen
@@ -3417,6 +3432,13 @@ export default function App() {
             rosterPlayerIds={teamRosterPlayerIds}
             onOpenPlayer={openPlayerProfile}
           />
+        ) : activeMenu === 'tv' ? (
+          <TvDisplayScreen
+            tournaments={tournamentsList}
+            pinnedTournamentId={selectedTournament?.id || null}
+            subscribeLeaderboard={subscribeTeamPredictionLeaderboard}
+            onExit={isLoggedIn ? () => setActiveMenu('scoreboard') : null}
+          />
         ) : activeMenu === 'tournament-picks' ? (
           <TournamentPredictionsScreen
             tournament={liveSelectedTournament}
@@ -3466,6 +3488,7 @@ export default function App() {
             creatingTeamTournament={creatingTeamTournament}
             onOpenTournamentPredictions={openTournamentPicks}
             onOpenTournamentFixtures={openTournamentFixtures}
+            onOpenTournamentTv={openTournamentTv}
             onOpenTournamentFixture={async (id) => {
               await t.loadTournamentById(id);
               setFixtureTournamentId(id);

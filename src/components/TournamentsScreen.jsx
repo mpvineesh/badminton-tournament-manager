@@ -45,6 +45,7 @@ export default function TournamentsScreen({
   onOpenTournamentFixture,
   onOpenTournamentPredictions,
   onOpenTournamentFixtures,
+  onOpenTournamentTv,
   onCreateTeamTournament,
   creatingTeamTournament = false,
   handleTournamentDelete,
@@ -473,6 +474,13 @@ export default function TournamentsScreen({
                         >
                           Fixtures
                         </button>
+                        <button
+                          className="px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
+                          onClick={() => onOpenTournamentTv?.(row.id)}
+                          title="Big-screen dashboard for this tournament"
+                        >
+                          TV
+                        </button>
                         {isAdminUser && (
                           <button
                             className="px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
@@ -587,6 +595,13 @@ export default function TournamentsScreen({
                                 onClick={() => onOpenTournamentFixtures?.(row.id)}
                               >
                                 Fixtures
+                              </button>
+                              <button
+                                className="px-2 py-1 rounded-lg border hover:bg-slate-100"
+                                onClick={() => onOpenTournamentTv?.(row.id)}
+                                title="Big-screen dashboard for this tournament"
+                              >
+                                TV
                               </button>
                               {isAdminUser && (
                                 <button

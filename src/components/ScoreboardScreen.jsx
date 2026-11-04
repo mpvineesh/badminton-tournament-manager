@@ -150,7 +150,7 @@ function DisplayMode({ tournaments, onExit }) {
   );
 }
 
-export default function ScoreboardScreen({ tournaments, loading, error, onRefresh }) {
+export default function ScoreboardScreen({ tournaments, loading, error, onRefresh, onOpenTvDisplay }) {
   const [display, setDisplay] = useState(false);
   const liveTournaments = (tournaments || []).filter((t) => t?.status === 'Live');
 
@@ -164,7 +164,16 @@ export default function ScoreboardScreen({ tournaments, loading, error, onRefres
             <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">Scoreboard</div>
             <div className="text-xs text-slate-600 dark:text-slate-300">Live tournaments with scores and standings.</div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {onOpenTvDisplay && (
+              <button
+                className="btn-gold"
+                onClick={onOpenTvDisplay}
+                title="Standings, live scores, upcoming matches and the prediction leaderboard on one screen"
+              >
+                TV dashboard
+              </button>
+            )}
             <button
               className="btn-primary"
               onClick={() => setDisplay(true)}

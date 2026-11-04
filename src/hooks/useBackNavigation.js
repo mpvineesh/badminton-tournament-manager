@@ -17,14 +17,15 @@ const MENU_TO_PATH = {
   fixtures: '/fixtures',
   'team-predictions': '/predictions',
   scoreboard: '/scoreboard',
+  tv: '/tv',
   tournaments: '/tournaments',
   login: '/login',
 };
 
 // Screens reachable without logging in (shareable SMASHPICKS pages).
-export const PUBLIC_MENUS = ['team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures', 'player-stats'];
+export const PUBLIC_MENUS = ['team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures', 'player-stats', 'tv'];
 // Screens that need a tournament loaded before they can render.
-export const TOURNAMENT_MENUS = ['tournament', 'tournament-settings', 'tournaments', 'tournament-picks', 'tournament-fixtures'];
+export const TOURNAMENT_MENUS = ['tournament', 'tournament-settings', 'tournaments', 'tournament-picks', 'tournament-fixtures', 'tv'];
 
 const keyOf = (nav) =>
   `${nav.activeMenu}|${nav.tournamentView || 'list'}|${nav.selectedTournamentId || ''}|${nav.playerStatsId || ''}`;
@@ -38,6 +39,7 @@ export function navToPath(nav) {
   if (nav.activeMenu === 'tournament-settings' && tid) return `/tournament/${tid}/settings`;
   if (nav.activeMenu === 'tournament-picks' && tid) return `/tournament/${tid}/predictions`;
   if (nav.activeMenu === 'tournament-fixtures' && tid) return `/tournament/${tid}/fixtures`;
+  if (nav.activeMenu === 'tv' && tid) return `/tournament/${tid}/tv`;
   if (nav.activeMenu === 'tournaments' && tid) {
     if (nav.tournamentView === 'matches') return `/tournament/${tid}/matches`;
     if (nav.tournamentView === 'points') return `/tournament/${tid}/points`;
@@ -63,7 +65,7 @@ export function pathToNav(pathname) {
   if (clean === '/tournament-predictions') {
     return { activeMenu: 'predictions', tournamentView: 'list', selectedTournamentId: null };
   }
-  const m = clean.match(/^\/tournament\/([^/]+)(?:\/(settings|matches|points|match|predictions|fixtures))?$/);
+  const m = clean.match(/^\/tournament\/([^/]+)(?:\/(settings|matches|points|match|predictions|fixtures|tv))?$/);
   if (m) {
     const selectedTournamentId = m[1];
     switch (m[2]) {
@@ -79,6 +81,8 @@ export function pathToNav(pathname) {
         return { activeMenu: 'tournament-picks', tournamentView: 'list', selectedTournamentId };
       case 'fixtures':
         return { activeMenu: 'tournament-fixtures', tournamentView: 'list', selectedTournamentId };
+      case 'tv':
+        return { activeMenu: 'tv', tournamentView: 'list', selectedTournamentId };
       default:
         return { activeMenu: 'tournament', tournamentView: 'list', selectedTournamentId };
     }

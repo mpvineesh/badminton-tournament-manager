@@ -1448,6 +1448,16 @@ export async function saveTeamMatchResult(tournamentId, fixtureId, result) {
  * correct-pick counts only. Written by the client that records a result (or
  * an admin opening the page), read by everyone.
  */
+function normalizeLeaderboardDoc(data) {
+  return {
+    rows: Array.isArray(data?.rows) ? data.rows : [],
+    completedCount: Number(data?.completed_count) || 0,
+    fixtureCount: Number(data?.fixture_count) || 0,
+    resultsSignature: String(data?.results_signature || ''),
+    updatedAt: data?.updated_at || null,
+  };
+}
+
 export async function getTeamPredictionLeaderboard(tournamentId) {
   const tid = String(tournamentId || '').trim();
   if (!tid) return null;
@@ -1458,16 +1468,49 @@ export async function getTeamPredictionLeaderboard(tournamentId) {
     const fdb = ensureFirebaseDb('getTeamPredictionLeaderboard');
     const snapshot = await getDoc(doc(fdb, 'team_prediction_leaderboards', tid));
     if (!snapshot.exists()) return null;
-    const data = snapshot.data();
-    return {
-      rows: Array.isArray(data.rows) ? data.rows : [],
-      completedCount: Number(data.completed_count) || 0,
-      fixtureCount: Number(data.fixture_count) || 0,
-      resultsSignature: String(data.results_signature || ''),
-      updatedAt: data.updated_at || null,
-    };
+    return normalizeLeaderboardDoc(snapshot.data());
   }
   return null;
+}
+
+/**
+ * Subscribe to a tournament's published prediction leaderboard so a display
+ * screen updates the moment a result is recorded. Real-time in firebase mode,
+ * polling otherwise. Returns an unsubscribe function.
+ * @param {(leaderboard: object|null, error: Error|null) => void} callback
+ */
+export function subscribeTeamPredictionLeaderboard(tournamentId, callback, { intervalMs = 20000 } = {}) {
+  const tid = String(tournamentId || '').trim();
+  if (!tid) {
+    callback(null, null);
+    return () => {};
+  }
+  if (isFirebaseMode()) {
+    const fdb = ensureFirebaseDb('subscribeTeamPredictionLeaderboard');
+    return onSnapshot(
+      doc(fdb, 'team_prediction_leaderboards', tid),
+      (snapshot) => callback(snapshot.exists() ? normalizeLeaderboardDoc(snapshot.data()) : null, null),
+      (err) => callback(null, err)
+    );
+  }
+
+  let cancelled = false;
+  let timer = null;
+  const tick = async () => {
+    try {
+      const leaderboard = await getTeamPredictionLeaderboard(tid);
+      if (!cancelled) callback(leaderboard, null);
+    } catch (err) {
+      if (!cancelled) callback(null, err);
+    } finally {
+      if (!cancelled) timer = setTimeout(tick, intervalMs);
+    }
+  };
+  tick();
+  return () => {
+    cancelled = true;
+    if (timer) clearTimeout(timer);
+  };
 }
 
 export async function publishTeamPredictionLeaderboard(tournamentId, leaderboard) {
