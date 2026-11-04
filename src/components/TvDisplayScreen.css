@@ -183,7 +183,7 @@
 
 .tv-live { flex: 1.15 1 0; }
 .tv-upcoming { flex: 1 1 0; }
-.tv-standings { flex: 0 1 auto; }
+.tv-standings { flex: 0 1 auto; max-height: 64%; }
 .tv-predictions { flex: 1 1 11em; min-height: 11em; }
 
 .tv-panel {
@@ -245,6 +245,13 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
+}
+
+/* Standings with many teams scroll (and auto-page on a TV) instead of clipping. */
+.tv-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #3a5f55 transparent;
 }
 
 /* Many standings rows (two groups): tighten the table so it fits beside the
@@ -329,6 +336,12 @@
   text-align: center;
 }
 
+.tv-free-next .tv-match-foot {
+  margin-top: 0.5em;
+  border-top: 0;
+  padding-top: 0;
+}
+
 .tv-free-next small {
   margin-bottom: 0.4em;
   color: var(--tv-muted);
@@ -359,6 +372,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 0.5em 0.7em;
   color: var(--tv-muted);
   font-size: 0.8em;
@@ -367,12 +381,27 @@
   text-transform: uppercase;
 }
 
-.tv-match-heading {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.tv-match-state {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-left: auto;
+}
+
+.tv-match-state.is-available {
+  color: var(--tv-muted);
+  font-size: 0.85em;
+  letter-spacing: 0.14em;
+}
+
+.tv-match-foot {
+  border-top: 1px solid var(--tv-line);
+  padding-top: 0.7em;
+  color: var(--tv-muted);
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
 }
 
 .tv-chip {
@@ -388,8 +417,10 @@
 }
 
 .tv-chip.is-live {
-  color: #ffd0c2;
-  background: rgb(255 122 89 / 16%);
+  color: #ffb49c;
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .tv-chip.is-gamepoint {
@@ -401,6 +432,19 @@
   border: 1px solid #4e7063;
   color: var(--tv-lime);
   background: rgb(201 250 99 / 8%);
+}
+
+.tv-chip.is-court.is-muted {
+  border-color: var(--tv-border);
+  color: var(--tv-muted);
+  background: rgb(255 255 255 / 4%);
+}
+
+.tv-clock-icon {
+  width: 1.6em;
+  height: 1.6em;
+  margin-bottom: 0.3em;
+  color: var(--tv-lime);
 }
 
 .tv-match-body {
@@ -764,6 +808,7 @@
 
   .tv-panel,
   .tv-panel-body,
+  .tv-scroll,
   .tv-fit {
     flex: none;
     min-height: 0;

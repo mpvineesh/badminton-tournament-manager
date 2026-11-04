@@ -281,9 +281,25 @@ function matchHeading(match) {
   return [match.stage, match.label].filter(Boolean).join(' · ');
 }
 
-function CourtChip({ court }) {
+/** "Group 1 - Match 1" → "Group 1 · Match 01", as printed on the court cards. */
+function cardLabel(match) {
+  return matchHeading(match)
+    .replace(/\s+-\s+/g, ' · ')
+    .replace(/\bMatch (\d)$/i, 'Match 0$1');
+}
+
+function CourtChip({ court, muted }) {
   if (!court) return null;
-  return <span className="tv-chip is-court">Court {court}</span>;
+  return <span className={`tv-chip is-court ${muted ? 'is-muted' : ''}`}>Court {court}</span>;
+}
+
+function ClockIcon() {
+  return (
+    <svg className="tv-clock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
 }
 
 function LiveMatchCard({ match, court }) {
@@ -294,9 +310,10 @@ function LiveMatchCard({ match, court }) {
     <article className="tv-match">
       <div className="tv-match-top">
         <CourtChip court={court} />
-        <span className="tv-chip is-live"><i /> Live</span>
-        <span className="tv-match-heading">{matchHeading(match)}</span>
-        {gamePoint && <span className="tv-chip is-gamepoint">Game point</span>}
+        <span className="tv-match-state">
+          {gamePoint && <span className="tv-chip is-gamepoint">Game point</span>}
+          <span className="tv-chip is-live"><i /> Live now</span>
+        </span>
       </div>
       <div className="tv-match-body">
         <TeamBlock team={match.teamA} align="left" leading={a > b} />
@@ -307,6 +324,7 @@ function LiveMatchCard({ match, court }) {
         </div>
         <TeamBlock team={match.teamB} align="right" leading={b > a} />
       </div>
+      <div className="tv-match-foot">{cardLabel(match)}</div>
     </article>
   );
 }
@@ -315,23 +333,53 @@ function FreeCourtCard({ court, next }) {
   return (
     <article className="tv-match is-free">
       <div className="tv-match-top">
-        <CourtChip court={court} />
-        <span className="tv-match-heading">Free</span>
+        <CourtChip court={court} muted />
+        <span className="tv-match-state is-available">Available</span>
       </div>
       {next ? (
         <div className="tv-free-next">
-          <small>Next up · {matchHeading(next)}</small>
+          <ClockIcon />
+          <small>Next match</small>
           <strong>{next.teamA.name}</strong>
           <em>vs</em>
           <strong>{next.teamB.name}</strong>
+          <span className="tv-match-foot">{cardLabel(next)}</span>
         </div>
       ) : (
         <div className="tv-free-next">
+          <ClockIcon />
           <strong>No more matches scheduled</strong>
         </div>
       )}
     </article>
   );
+}
+
+/**
+ * A TV has no one to scroll it: when a panel body overflows, page through it
+ * slowly and loop back to the top. Manual scrolling still works on a tablet.
+ */
+function useAutoScroll(ref, enabled, contentKey, intervalMs = 7000) {
+  // contentKey re-arms the timer once the panel exists / changes tournament.
+  useEffect(() => {
+    const el = ref.current;
+    if (!enabled || !el) return undefined;
+    let goingDown = true;
+    const tick = () => {
+      const max = el.scrollHeight - el.clientHeight;
+      if (max < 4) return;
+      if (goingDown) {
+        const next = Math.min(max, el.scrollTop + el.clientHeight * 0.8);
+        el.scrollTo({ top: next, behavior: 'smooth' });
+        if (next >= max - 1) goingDown = false;
+      } else {
+        el.scrollTo({ top: 0, behavior: 'smooth' });
+        goingDown = true;
+      }
+    };
+    const timer = setInterval(tick, intervalMs);
+    return () => clearInterval(timer);
+  }, [ref, enabled, contentKey, intervalMs]);
 }
 
 function sideNames(players, fallback) {
@@ -362,6 +410,8 @@ export default function TvDisplayScreen({
   const [leaderboardError, setLeaderboardError] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const narrow = useNarrowLayout();
+  const standingsRef = useRef(null);
+  useAutoScroll(standingsRef, !narrow, tournamentId);
 
   useEffect(() => {
     const clock = setInterval(() => setNow(new Date()), 15000);
@@ -561,7 +611,7 @@ export default function TvDisplayScreen({
               <h2 id="tv-standings-title">Leaderboard</h2>
               <span>Points · wins · losses · score difference</span>
             </div>
-            <div className={`tv-panel-body ${denseStandings ? 'is-dense' : ''}`}>
+            <div ref={standingsRef} className={`tv-panel-body tv-scroll ${denseStandings ? 'is-dense' : ''}`}>
               {model.standings.length === 0 ? (
                 <div className="tv-empty">
                   <strong>No standings yet</strong>
