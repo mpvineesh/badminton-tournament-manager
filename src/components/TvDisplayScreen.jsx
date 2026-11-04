@@ -14,8 +14,9 @@ import './TvDisplayScreen.css';
 // live match scores, the next matches and the prediction leaderboard. Fed by
 // the live tournaments subscription, so it never needs a manual refresh.
 
-const LIVE_PER_PAGE = 2;
-const LIVE_PAGE_MS = 8000;
+// The club plays on two courts; a tournament's fixtures carry the court each
+// match is scheduled on, so the live panel shows one slot per court.
+const DEFAULT_COURT_COUNT = 2;
 // Caps for stacked (tablet / portrait) layouts where the page scrolls; on a
 // fixed-height TV layout the lists size themselves to the space available.
 const UPCOMING_LIMIT = 6;
@@ -107,6 +108,7 @@ function buildTvModel(row) {
     stage: match.stage,
     label: String(match.label || '').trim(),
     status: match.status || 'Pending',
+    court: Number(match.court) > 0 ? Number(match.court) : null,
     scoreA: toScore(match.scoreA),
     scoreB: toScore(match.scoreB),
     teamA: side(match, 'A'),
@@ -139,11 +141,38 @@ function buildTvModel(row) {
     matches,
     live,
     upcoming,
+    courtCount: Math.max(DEFAULT_COURT_COUNT, ...matches.map((m) => m.court || 0)),
     completedCount: matches.filter((m) => m.status === 'Completed').length,
     standings,
     standingsRowCount: standings.reduce((sum, group) => sum + group.rows.length, 0),
     resultsSignature: resultsSignature(buildPredictionModel(row)),
   };
+}
+
+/**
+ * One slot per court: the match being played there, or the next one scheduled
+ * on it. Live matches without a court take any free slot, and any beyond the
+ * court count are appended so nothing live is ever hidden.
+ */
+function buildCourtBoard(model) {
+  const liveLeft = [...model.live];
+  const slots = Array.from({ length: model.courtCount }, (_, i) => {
+    const court = i + 1;
+    const index = liveLeft.findIndex((m) => m.court === court);
+    return { court, live: index >= 0 ? liveLeft.splice(index, 1)[0] : null, next: null };
+  });
+  for (const slot of slots) {
+    if (!slot.live && liveLeft.length) slot.live = liveLeft.shift();
+  }
+  const extra = liveLeft.map((m) => ({ court: m.court, live: m, next: null }));
+  const upcomingLeft = [...model.upcoming];
+  for (const slot of slots) {
+    if (slot.live) continue;
+    let index = upcomingLeft.findIndex((m) => m.court === slot.court);
+    if (index < 0) index = upcomingLeft.findIndex((m) => !m.court);
+    slot.next = index >= 0 ? upcomingLeft.splice(index, 1)[0] : null;
+  }
+  return [...slots, ...extra];
 }
 
 function normalizeName(value) {
@@ -252,13 +281,19 @@ function matchHeading(match) {
   return [match.stage, match.label].filter(Boolean).join(' · ');
 }
 
-function LiveMatchCard({ match, single }) {
+function CourtChip({ court }) {
+  if (!court) return null;
+  return <span className="tv-chip is-court">Court {court}</span>;
+}
+
+function LiveMatchCard({ match, court }) {
   const a = match.scoreA ?? 0;
   const b = match.scoreB ?? 0;
   const gamePoint = isGamePoint(a, b);
   return (
-    <article className={`tv-match ${single ? 'is-single' : ''}`}>
+    <article className="tv-match">
       <div className="tv-match-top">
+        <CourtChip court={court} />
         <span className="tv-chip is-live"><i /> Live</span>
         <span className="tv-match-heading">{matchHeading(match)}</span>
         {gamePoint && <span className="tv-chip is-gamepoint">Game point</span>}
@@ -272,6 +307,29 @@ function LiveMatchCard({ match, single }) {
         </div>
         <TeamBlock team={match.teamB} align="right" leading={b > a} />
       </div>
+    </article>
+  );
+}
+
+function FreeCourtCard({ court, next }) {
+  return (
+    <article className="tv-match is-free">
+      <div className="tv-match-top">
+        <CourtChip court={court} />
+        <span className="tv-match-heading">Free</span>
+      </div>
+      {next ? (
+        <div className="tv-free-next">
+          <small>Next up · {matchHeading(next)}</small>
+          <strong>{next.teamA.name}</strong>
+          <em>vs</em>
+          <strong>{next.teamB.name}</strong>
+        </div>
+      ) : (
+        <div className="tv-free-next">
+          <strong>No more matches scheduled</strong>
+        </div>
+      )}
     </article>
   );
 }
@@ -300,7 +358,6 @@ export default function TvDisplayScreen({
   const leaderboardOpen = model ? isLeaderboardOpen(model.eventDate) : false;
 
   const [now, setNow] = useState(() => new Date());
-  const [livePage, setLivePage] = useState(0);
   const [leaderboard, setLeaderboard] = useState(null);
   const [leaderboardError, setLeaderboardError] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -311,15 +368,8 @@ export default function TvDisplayScreen({
     return () => clearInterval(clock);
   }, []);
 
-  // With more live matches than fit at once, page through them.
   const liveCount = model?.live.length || 0;
-  const livePages = Math.max(1, Math.ceil(liveCount / LIVE_PER_PAGE));
-  useEffect(() => {
-    setLivePage(0);
-    if (livePages <= 1) return undefined;
-    const timer = setInterval(() => setLivePage((page) => (page + 1) % livePages), LIVE_PAGE_MS);
-    return () => clearInterval(timer);
-  }, [livePages, tournamentId]);
+  const courtBoard = useMemo(() => (model ? buildCourtBoard(model) : []), [model]);
 
   useEffect(() => {
     setLeaderboard(null);
@@ -381,9 +431,6 @@ export default function TvDisplayScreen({
     }
   };
 
-  const livePageMatches = model
-    ? model.live.slice(livePage * LIVE_PER_PAGE, livePage * LIVE_PER_PAGE + LIVE_PER_PAGE)
-    : [];
   const predictionRows = leaderboard?.rows || [];
   const denseStandings = (model?.standingsRowCount || 0) > DENSE_STANDINGS_ROWS;
   const leaderboardStale = Boolean(leaderboard) && leaderboard.resultsSignature !== model?.resultsSignature;
@@ -449,30 +496,20 @@ export default function TvDisplayScreen({
               </span>
             </div>
             <div className="tv-panel-body">
-              {liveCount === 0 ? (
+              {liveCount === 0 && model.status === 'Completed' ? (
                 <div className="tv-empty">
-                  <strong>{model.status === 'Completed' ? 'Tournament finished' : 'Waiting for the next match'}</strong>
-                  {model.upcoming[0] && model.status !== 'Completed' && (
-                    <span>
-                      Next up: {model.upcoming[0].teamA.name} vs {model.upcoming[0].teamB.name}
-                    </span>
-                  )}
+                  <strong>Tournament finished</strong>
                 </div>
               ) : (
-                <>
-                  <div className="tv-live-cards" style={{ '--count': livePageMatches.length }}>
-                    {livePageMatches.map((match) => (
-                      <LiveMatchCard key={match.key} match={match} single={livePageMatches.length === 1} />
-                    ))}
-                  </div>
-                  {livePages > 1 && (
-                    <div className="tv-dots" aria-hidden="true">
-                      {Array.from({ length: livePages }, (_, i) => (
-                        <span key={i} className={i === livePage ? 'is-active' : ''} />
-                      ))}
-                    </div>
+                <div className="tv-live-cards" style={{ '--count': courtBoard.length }}>
+                  {courtBoard.map((slot, index) =>
+                    slot.live ? (
+                      <LiveMatchCard key={slot.live.key} match={slot.live} court={slot.court} />
+                    ) : (
+                      <FreeCourtCard key={`court-${slot.court || index}`} court={slot.court} next={slot.next} />
+                    )
                   )}
-                </>
+                </div>
               )}
             </div>
           </section>
@@ -495,7 +532,10 @@ export default function TvDisplayScreen({
                   moreLabel={(n) => `+${n} more to follow`}
                   renderItem={(match) => (
                     <li key={match.key} className="tv-up">
-                      <span className="tv-up-label">{matchHeading(match) || 'Match'}</span>
+                      <span className="tv-up-label">
+                        {matchHeading(match) || 'Match'}
+                        {match.court && <small>Court {match.court}</small>}
+                      </span>
                       <div className="tv-up-teams">
                         <span className="tv-up-team">
                           {match.teamA.name}

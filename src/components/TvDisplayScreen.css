@@ -315,10 +315,51 @@
   background: rgb(7 23 25 / 55%);
 }
 
+.tv-match.is-free {
+  border-style: dashed;
+  border-color: #2f4d47;
+  background: rgb(7 23 25 / 30%);
+}
+
+.tv-free-next {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25em;
+  text-align: center;
+}
+
+.tv-free-next small {
+  margin-bottom: 0.4em;
+  color: var(--tv-muted);
+  font-size: 0.75em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tv-free-next strong {
+  font-size: 1.35em;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  overflow-wrap: break-word;
+}
+
+.tv-free-next em {
+  color: var(--tv-lime);
+  font-size: 0.75em;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .tv-match-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.7em;
+  gap: 0.5em 0.7em;
   color: var(--tv-muted);
   font-size: 0.8em;
   font-weight: 700;
@@ -356,19 +397,23 @@
   background: var(--tv-gold);
 }
 
+.tv-chip.is-court {
+  border: 1px solid #4e7063;
+  color: var(--tv-lime);
+  background: rgb(201 250 99 / 8%);
+}
+
 .tv-match-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 1em;
+  gap: 0.4em;
+  text-align: center;
 }
 
 .tv-team {
+  width: 100%;
   min-width: 0;
-}
-
-.tv-team.is-right {
-  text-align: right;
 }
 
 .tv-team-name {
@@ -379,46 +424,19 @@
   overflow-wrap: break-word;
 }
 
-/* Side-by-side cards are too narrow for name · score · name on one line, so
-   each stacks like a scoreboard: team, score, team. */
-.tv-match:not(.is-single) .tv-match-body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4em;
-  text-align: center;
-}
-
-.tv-match:not(.is-single) .tv-team,
-.tv-match:not(.is-single) .tv-team.is-right {
-  width: 100%;
-  text-align: center;
-}
-
-.tv-match:not(.is-single) .tv-team-players,
-.tv-match:not(.is-single) .tv-team.is-right .tv-team-players {
-  justify-content: center;
-}
 
 .tv-team.is-leading .tv-team-name {
   color: #ffffff;
-}
-
-.tv-match.is-single .tv-team-name {
-  font-size: 2.3em;
 }
 
 .tv-team-players {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4em 0.9em;
+  justify-content: center;
   margin-top: 0.55em;
   color: #cfe3dc;
   font-size: 0.95em;
-}
-
-.tv-team.is-right .tv-team-players {
-  justify-content: flex-end;
 }
 
 .tv-player {
@@ -464,10 +482,6 @@
   letter-spacing: -0.04em;
 }
 
-.tv-match.is-single .tv-score {
-  font-size: 6.5em;
-}
-
 .tv-score b {
   min-width: 1.25ch;
   color: #9fb8b2;
@@ -482,25 +496,6 @@
   color: var(--tv-muted);
   font-size: 0.5em;
   font-weight: 400;
-}
-
-.tv-dots {
-  display: flex;
-  justify-content: center;
-  gap: 0.5em;
-  margin-top: 0.8em;
-  flex: 0 0 auto;
-}
-
-.tv-dots span {
-  width: 0.55em;
-  height: 0.55em;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 22%);
-}
-
-.tv-dots span.is-active {
-  background: var(--tv-lime);
 }
 
 /* ---- Standings ---- */
@@ -605,6 +600,9 @@
 }
 
 .tv-up-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
   max-width: 13em;
   overflow: hidden;
   color: var(--tv-muted);
@@ -614,6 +612,12 @@
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+.tv-up-label small {
+  color: var(--tv-lime);
+  font-size: 0.9em;
+  letter-spacing: 0.1em;
 }
 
 .tv-up-teams {
@@ -772,14 +776,6 @@
 
   .tv-live-cards {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .tv-match.is-single .tv-score {
-    font-size: 4.5em;
-  }
-
-  .tv-match.is-single .tv-team-name {
-    font-size: 1.7em;
   }
 
   .tv-up {
