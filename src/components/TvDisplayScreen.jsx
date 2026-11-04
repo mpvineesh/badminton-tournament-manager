@@ -8,6 +8,7 @@ import {
   resultsSignature,
 } from '../utils/tournamentPredictions.js';
 import { resolveProfilePhotoUrl } from '../supabaseAdapter.js';
+import { buildMatchQueue } from '../utils/matchQueue.js';
 import './TvDisplayScreen.css';
 
 // Big-screen dashboard for a TV or tablet on the court side: team standings,
@@ -103,7 +104,8 @@ function buildTvModel(row) {
   };
 
   const toScore = (value) => (value == null || value === '' ? null : Number(value));
-  const matches = stageMatches(payload).map((match, index) => ({
+  const rawMatches = stageMatches(payload);
+  const matches = rawMatches.map((match, index) => ({
     key: `${match.stage}-${match.id ?? index}`,
     stage: match.stage,
     label: String(match.label || '').trim(),
@@ -116,7 +118,12 @@ function buildTvModel(row) {
   }));
   const scheduled = matches.filter((m) => m.teamA.id && m.teamB.id);
   const live = scheduled.filter((m) => m.status === 'Live');
-  const upcoming = scheduled.filter((m) => m.status !== 'Live' && m.status !== 'Completed');
+  // Upcoming matches in the order they should be played: players on court or
+  // just off it are not sent straight back out while another match can go on.
+  const indexOf = new Map(rawMatches.map((raw, index) => [raw, index]));
+  const upcoming = buildMatchQueue(rawMatches, teamsById)
+    .map((raw) => matches[indexOf.get(raw)])
+    .filter((m) => m && m.teamA.id && m.teamB.id);
 
   const pools = Array.isArray(payload.pools) ? payload.pools : [];
   const table = computeStandings(pools, teams, payload.groupMatches || [], payload.pointSystem || {});
@@ -150,8 +157,8 @@ function buildTvModel(row) {
 }
 
 /**
- * One slot per court: the match being played there, or the next one scheduled
- * on it. Live matches without a court take any free slot, and any beyond the
+ * One slot per court: the match being played there, or the next match to go
+ * on. Live matches without a court take any free slot, and any beyond the
  * court count are appended so nothing live is ever hidden.
  */
 function buildCourtBoard(model) {
@@ -165,12 +172,11 @@ function buildCourtBoard(model) {
     if (!slot.live && liveLeft.length) slot.live = liveLeft.shift();
   }
   const extra = liveLeft.map((m) => ({ court: m.court, live: m, next: null }));
+  // Free courts take the queue in order (the queue already keeps the two
+  // next matches from sharing players whenever possible).
   const upcomingLeft = [...model.upcoming];
   for (const slot of slots) {
-    if (slot.live) continue;
-    let index = upcomingLeft.findIndex((m) => m.court === slot.court);
-    if (index < 0) index = upcomingLeft.findIndex((m) => !m.court);
-    slot.next = index >= 0 ? upcomingLeft.splice(index, 1)[0] : null;
+    if (!slot.live) slot.next = upcomingLeft.shift() || null;
   }
   return [...slots, ...extra];
 }
@@ -567,7 +573,9 @@ export default function TvDisplayScreen({
           <section className="tv-panel tv-upcoming" aria-labelledby="tv-upcoming-title">
             <div className="tv-panel-head">
               <h2 id="tv-upcoming-title">Up next</h2>
-              <span>{model.upcoming.length} {model.upcoming.length === 1 ? 'match' : 'matches'} to play</span>
+              <span>
+                {model.upcoming.length} {model.upcoming.length === 1 ? 'match' : 'matches'} to play · in playing order, players rested in between
+              </span>
             </div>
             <div className="tv-panel-body">
               {model.upcoming.length === 0 ? (
@@ -582,10 +590,7 @@ export default function TvDisplayScreen({
                   moreLabel={(n) => `+${n} more to follow`}
                   renderItem={(match) => (
                     <li key={match.key} className="tv-up">
-                      <span className="tv-up-label">
-                        {matchHeading(match) || 'Match'}
-                        {match.court && <small>Court {match.court}</small>}
-                      </span>
+                      <span className="tv-up-label">{matchHeading(match) || 'Match'}</span>
                       <div className="tv-up-teams">
                         <span className="tv-up-team">
                           {match.teamA.name}

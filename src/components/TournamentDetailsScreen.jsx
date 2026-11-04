@@ -1,5 +1,6 @@
 import React from 'react';
 import { computeStandings } from '../utils/tournament.js';
+import { getMatchKey, isUpcomingMatch, recommendCourtMatches } from '../utils/matchQueue.js';
 
 function getMatchStatusBadgeClass(status) {
   if (status === 'Completed') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -37,17 +38,6 @@ function getCurrentMatch(matches) {
   return sorted[0] || null;
 }
 
-function getMatchPlayers(match, teamsById) {
-  const fromExplicit = [
-    ...(match?.teamAPlayerIds || []),
-    ...(match?.teamBPlayerIds || []),
-  ].filter(Boolean);
-  if (fromExplicit.length > 0) return fromExplicit;
-  const teamAPlayers = teamsById[match?.teamAId || '']?.players || [];
-  const teamBPlayers = teamsById[match?.teamBId || '']?.players || [];
-  return [...teamAPlayers, ...teamBPlayers].filter(Boolean);
-}
-
 function getDisplayName(match, teamsById, side) {
   if (side === 'A') {
     return match?.teamADisplay || teamsById[match?.teamAId || '']?.name || 'TBD';
@@ -62,14 +52,6 @@ function withWinnerTrophy(match, side, label) {
       ? match.winnerTeamId === match.teamAId
       : match.winnerTeamId === match.teamBId;
   return isWinner ? `🏆 ${label}` : label;
-}
-
-function getMatchKey(match) {
-  return `${match?.stage || ''}:${match?.id || ''}`;
-}
-
-function isUpcomingMatch(match) {
-  return match?.status === 'Pending' || match?.status === 'Upcoming' || !match?.status;
 }
 
 function readSkippedMatchKeys(storageKey) {
@@ -89,62 +71,6 @@ function writeSkippedMatchKeys(storageKey, keys) {
   } catch {
     // Storage is a convenience only; the in-memory state still drives the UI.
   }
-}
-
-// Live matches are shown in the current-match panel above, so only upcoming
-// matches are recommended here.
-function getRecommendedCourtMatches(matches, teamsById, skippedKeys = []) {
-  const all = matches || [];
-  const liveMatches = all.filter((m) => m?.status === 'Live');
-  const upcoming = all.filter(isUpcomingMatch);
-  const liveCount = liveMatches.length;
-  if (upcoming.length === 0) return { court1: null, court2: null, liveCount };
-
-  const skipRank = (match) => skippedKeys.indexOf(getMatchKey(match));
-
-  // Players currently on court cannot start another match right now.
-  const busyPlayers = new Set(liveMatches.flatMap((m) => getMatchPlayers(m, teamsById)));
-  // Players who just finished get a breather when an alternative exists.
-  const recentlyCompleted = all.find((m) => m?.status === 'Completed') || null;
-  const recentPlayers = new Set(
-    recentlyCompleted ? getMatchPlayers(recentlyCompleted, teamsById) : []
-  );
-
-  const withMeta = upcoming.map((m) => {
-    const players = getMatchPlayers(m, teamsById);
-    return {
-      match: m,
-      players,
-      busyOverlap: players.filter((pid) => busyPlayers.has(pid)).length,
-      overlapWithRecent: players.filter((pid) => recentPlayers.has(pid)).length,
-    };
-  });
-
-  // Skipped matches are pushed to the back of the queue (in the order they were
-  // skipped) rather than hidden, so they resurface once everything else is done.
-  withMeta.sort((a, b) => {
-    const skipDiff = skipRank(a.match) - skipRank(b.match);
-    if (skipDiff !== 0) return skipDiff;
-    if (a.busyOverlap !== b.busyOverlap) return a.busyOverlap - b.busyOverlap;
-    if (a.overlapWithRecent !== b.overlapWithRecent) {
-      return a.overlapWithRecent - b.overlapWithRecent;
-    }
-    return String(a.match?.label || '').localeCompare(String(b.match?.label || ''));
-  });
-
-  const court1Meta = withMeta[0];
-  const court1Players = new Set(court1Meta.players);
-  const candidates = withMeta.filter((item) => getMatchKey(item.match) !== getMatchKey(court1Meta.match));
-  const firstNonOverlapping = (items) =>
-    items.find((item) => item.players.every((pid) => !court1Players.has(pid)));
-  // Prefer matches nobody skipped; fall back to skipped ones only when needed.
-  const court2Meta =
-    firstNonOverlapping(candidates.filter((item) => skipRank(item.match) === -1)) ||
-    firstNonOverlapping(candidates) ||
-    candidates[0] ||
-    null;
-
-  return { court1: court1Meta.match, court2: court2Meta?.match || null, liveCount };
 }
 
 function getCompletedResult(tournament, teamsById) {
@@ -255,7 +181,7 @@ export default function TournamentDetailsScreen({
   const teamBDisplay = currentMatch
     ? withWinnerTrophy(currentMatch, 'B', currentMatch.teamBDisplay || teamB)
     : '-';
-  const recommendedCourts = getRecommendedCourtMatches(matches, teamsById, activeSkippedKeys);
+  const recommendedCourts = recommendCourtMatches(matches, teamsById, activeSkippedKeys);
   const completedResult = getCompletedResult(tournament, teamsById);
 
   return (

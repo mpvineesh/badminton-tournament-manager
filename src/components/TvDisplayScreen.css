@@ -658,12 +658,6 @@
   white-space: nowrap;
 }
 
-.tv-up-label small {
-  color: var(--tv-lime);
-  font-size: 0.9em;
-  letter-spacing: 0.1em;
-}
-
 .tv-up-teams {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
