@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { FIXTURES } from '../data/teamMatchFixtures.js';
 import {
   buildLegacyLeaderboard,
+  buildLegacyTeamStandings,
   legacyResultPicks,
   legacyResultsSignature,
   normalizeLegacyResult,
@@ -50,4 +51,31 @@ test('the legacy leaderboard scores numeric team ids against recorded results', 
     board.rows.map((row) => [row.rank, row.name, row.correct, row.graded, row.rangeHits]),
     [[1, 'Asha', 1, 2, 1], [2, 'Bala', 0, 1, 0]]
   );
+});
+
+
+test('team standings use actual results and all November bonus boundaries', () => {
+  for (const [score, winnerPoints, loserPoints] of [[9, 15, -1], [10, 13, 0], [16, 13, 0], [17, 10, 0]]) {
+    for (const reverse of [false, true]) {
+      const rows = buildLegacyTeamStandings({ [first.id]: { team1Score: reverse ? score : 21, team2Score: reverse ? 21 : score } });
+      const winner = rows.find((row) => row.id === String(reverse ? first.team2.id : first.team1.id));
+      const loser = rows.find((row) => row.id === String(reverse ? first.team1.id : first.team2.id));
+      assert.equal(winner.points, winnerPoints);
+      assert.equal(loser.points, loserPoints);
+      assert.equal(winner.wins, 1);
+      assert.equal(loser.losses, 1);
+      assert.equal(winner.difference, 21 - score);
+      assert.equal(rows.reduce((sum, row) => sum + row.played, 0), 2);
+    }
+  }
+});
+
+test('empty or invalid results leave all teams tied; corrections replace scores', () => {
+  const empty = buildLegacyTeamStandings({ [first.id]: { team1Score: 10, team2Score: 10 } });
+  assert.equal(empty.length, 5);
+  assert.ok(empty.every((row) => row.points === 0 && row.played === 0 && row.rank === 1));
+  const rows = buildLegacyTeamStandings({ [first.id]: { team1Score: 8, team2Score: 21 } });
+  assert.equal(rows[0].id, String(first.team2.id));
+  assert.equal(rows[0].rank, 1);
+  assert.equal(rows[0].played, 1);
 });

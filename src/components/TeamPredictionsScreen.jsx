@@ -392,6 +392,7 @@ export default function TeamPredictionsScreen({
   onPredictionIdentity,
   busy = false,
   onOpenFixtures,
+  onOpenTeamLeaderboard,
   players = [],
   rosterPlayerIds = {},
   onOpenPlayer,
@@ -767,9 +768,12 @@ export default function TeamPredictionsScreen({
             <span className="smash-mark">✳</span>
             <span>SMASH<span>PICKS</span></span>
           </div>
+          <div className="fixtures-nav-actions">
+          <button type="button" onClick={onOpenTeamLeaderboard} className="fixtures-back">Team leaderboard</button>
           <button type="button" onClick={onOpenFixtures} className="fixtures-back">
             Fixtures
           </button>
+          </div>
         </nav>
 
         <section className="smash-hero">

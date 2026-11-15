@@ -104,6 +104,7 @@ function FixturePrediction({ fixture, stats, loading, error, compact = false }) 
 
 export default function FixturesScreen({
   onOpenPredictions,
+  onOpenTeamLeaderboard,
   loadPredictionAnalytics,
   loadResults,
   onSaveResult,
@@ -193,6 +194,7 @@ export default function FixturesScreen({
             <strong>SMASH<span>PICKS</span></strong>
           </div>
           <div className="fixtures-nav-actions">
+            <button type="button" className="fixtures-back" onClick={onOpenTeamLeaderboard}>Team leaderboard</button>
             <button type="button" className="fixtures-back" onClick={onOpenPredictions}>
               ← Predictions
             </button>

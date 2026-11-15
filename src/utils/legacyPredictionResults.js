@@ -101,3 +101,31 @@ export function legacyResultsSignature(results = {}) {
 export function buildLegacyLeaderboard(results, entries) {
   return buildLeaderboard(buildLegacyModel(results), entries);
 }
+
+/** Actual team standings for the November event, excluding unplayed fixtures. */
+export function buildLegacyTeamStandings(results = {}) {
+  const model = buildLegacyModel(results);
+  const rows = model.teams.map((team) => ({ ...team, played: 0, wins: 0, losses: 0, scored: 0, conceded: 0, points: 0 }));
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  for (const fixture of model.fixtures) {
+    if (!fixture.completed) continue;
+    const a = byId.get(fixture.team1.id);
+    const b = byId.get(fixture.team2.id);
+    const winner = fixture.winnerTeamId === a.id ? a : b;
+    const loser = winner === a ? b : a;
+    const range = rangeForScore(model.scoreRanges, fixture.loserScore);
+    a.played++; b.played++;
+    a.scored += fixture.scoreA; a.conceded += fixture.scoreB;
+    b.scored += fixture.scoreB; b.conceded += fixture.scoreA;
+    winner.wins++; loser.losses++;
+    winner.points += model.winnerPoints + (range?.winnerBonus || 0);
+    loser.points += range?.loserBonus || 0;
+  }
+  const compare = (a, b) => b.points - a.points || b.wins - a.wins || (b.scored - b.conceded) - (a.scored - a.conceded);
+  rows.sort(compare);
+  let rank = 1;
+  return rows.map((row, index) => {
+    if (index && compare(rows[index - 1], row) !== 0) rank = index + 1;
+    return { ...row, rank, difference: row.scored - row.conceded };
+  });
+}

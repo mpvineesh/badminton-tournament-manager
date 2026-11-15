@@ -15,6 +15,7 @@ const MENU_TO_PATH = {
   'skill-level': '/skill',
   predictions: '/tournament-predictions',
   fixtures: '/fixtures',
+  'team-leaderboard': '/team-leaderboard',
   'team-predictions': '/predictions',
   scoreboard: '/scoreboard',
   tv: '/tv',
@@ -23,7 +24,7 @@ const MENU_TO_PATH = {
 };
 
 // Screens reachable without logging in (shareable SMASHPICKS pages).
-export const PUBLIC_MENUS = ['team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures', 'player-stats', 'tv'];
+export const PUBLIC_MENUS = ['team-leaderboard', 'team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures', 'player-stats', 'tv'];
 // Screens that need a tournament loaded before they can render.
 export const TOURNAMENT_MENUS = ['tournament', 'tournament-settings', 'tournaments', 'tournament-picks', 'tournament-fixtures', 'tv'];
 

@@ -1,3 +1,4 @@
+import TeamLeaderboardScreen from './components/TeamLeaderboardScreen.jsx';
 import BonusRulesEditor from './components/BonusRulesEditor.jsx';
 import { getLoserBonusRules, getWinnerBonusRules } from './utils/pointSystem.js';
 // ================================
@@ -138,7 +139,7 @@ export default function App() {
   const AUTH_MOBILE_KEY = 'tm_logged_mobile';
   const ACTIVE_MENU_KEY = 'tm_active_menu';
   // Screens that draw their own SMASHPICKS chrome instead of the app header/nav.
-  const FULL_BLEED_MENUS = ['team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures', 'tv'];
+  const FULL_BLEED_MENUS = ['team-leaderboard', 'team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures', 'tv'];
   // Tournament-scoped SMASHPICKS screens that are shareable without logging in.
   const PUBLIC_TOURNAMENT_MENUS = ['tournament-picks', 'tournament-fixtures', 'tv'];
   const RESTORABLE_MENUS = new Set([
@@ -151,6 +152,7 @@ export default function App() {
     'predictions',
     'fixtures',
     'team-predictions',
+    'team-leaderboard',
     'tournaments',
     'tournament-settings',
     'scoreboard',
@@ -324,7 +326,7 @@ export default function App() {
         setActiveMenu(urlNav.activeMenu);
       } else {
         setActiveMenu(
-          ['team-predictions', 'fixtures', 'tv'].includes(urlNav?.activeMenu)
+          ['team-predictions', 'fixtures', 'team-leaderboard', 'tv'].includes(urlNav?.activeMenu)
             ? urlNav.activeMenu
             : 'login'
         );
@@ -3401,6 +3403,7 @@ export default function App() {
           />
         ) : activeMenu === 'team-predictions' ? (
           <TeamPredictionsScreen
+            onOpenTeamLeaderboard={() => setActiveMenu('team-leaderboard')}
             onSave={saveTeamMatchPredictions}
             loadPredictionByMobile={loadTeamMatchPredictionByMobile}
             loadPlayerByMobile={loadTeamPredictionPlayerByMobile}
@@ -3421,8 +3424,11 @@ export default function App() {
             rosterPlayerIds={teamRosterPlayerIds}
             onOpenPlayer={openPlayerProfile}
           />
+        ) : activeMenu === 'team-leaderboard' ? (
+          <TeamLeaderboardScreen loadResults={loadLegacyMatchResults} onOpenPredictions={() => setActiveMenu('team-predictions')} onOpenFixtures={() => setActiveMenu('fixtures')} />
         ) : activeMenu === 'fixtures' ? (
           <FixturesScreen
+            onOpenTeamLeaderboard={() => setActiveMenu('team-leaderboard')}
             loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
             loadResults={loadLegacyMatchResults}
             onSaveResult={saveLegacyMatchResult}
