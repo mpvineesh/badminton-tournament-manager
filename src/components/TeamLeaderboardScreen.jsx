@@ -58,7 +58,7 @@ export default function TeamLeaderboardScreen({ loadResults, onOpenPredictions, 
           </table>
         </div>
       </>}
-      <p className="fixture-result-note">Win: 10 points. Loser below 10: winner +5, loser −1. Loser 10–16: winner +3. Loser 17 or more: no bonus.</p>
+      <p className="fixture-result-note">Win: 10 points. Loser 10 or less: winner +5, loser −1. Loser 11–17: winner +3. Loser 18 or more: no bonus.</p>
       <p className="fixture-result-note">Ranked by points, then wins, then score difference. Equal records share a rank. Results refresh every 30 seconds.</p>
     </div></div>
   );

@@ -1,15 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './TeamPredictionsScreen.css';
 import { TEAMS, PAIRINGS, FIXTURES, getFixturePlayers } from '../data/teamMatchFixtures.js';
-import { LEGACY_EVENT_DATE, legacyResultPicks, legacyResultsSignature } from '../utils/legacyPredictionResults.js';
+import { LEGACY_SCORE_RANGES, LEGACY_EVENT_DATE, legacyResultPicks, legacyResultsSignature } from '../utils/legacyPredictionResults.js';
 import { isLeaderboardOpen, isSubmissionOpen, submissionDeadlineLabel } from '../utils/tournamentPredictions.js';
 import PlayerProfileLink from './PlayerProfileLink.jsx';
 
-const SCORE_RANGES = [
-  { id: 'below10', label: 'Below 10', detail: 'Winner +5 · Loser −1' },
-  { id: '10to16', label: '10–16', detail: 'Winner +3' },
-  { id: '17to21', label: '17–21', detail: 'No bonus' },
-];
+const SCORE_RANGES = LEGACY_SCORE_RANGES;
 const TOTAL_PLAYERS = TEAMS.reduce((total, team) => total + team.players.length, 0);
 const SIMULATIONS = 6000;
 const MEMBER_PREVIEW_COUNT = 8;
@@ -1130,7 +1126,7 @@ export default function TeamPredictionsScreen({
             </div>
           </div>
           <p className="smash-forecast-note">
-            {forecast.playedCount} of {FIXTURES.length} fixtures predicted. A win is worth 10 base points. A losing score below 10 adds 5 points to the winner and −1 to the loser; 10–16 adds 3 points to the winner; 17–21 adds no bonus. For unpicked fixtures, each side has an equal chance in the {SIMULATIONS.toLocaleString()} simulations. Unresolved ties are broken randomly, so these are scenario probabilities—not guarantees.
+            {forecast.playedCount} of {FIXTURES.length} fixtures predicted. A win is worth 10 base points. A losing score of 10 or less adds 5 points to the winner and −1 to the loser; 11–17 adds 3 points to the winner; 18 or more adds no bonus. For unpicked fixtures, each side has an equal chance in the {SIMULATIONS.toLocaleString()} simulations. Unresolved ties are broken randomly, so these are scenario probabilities—not guarantees.
           </p>
         </section>
 

@@ -8,10 +8,11 @@ import { buildLeaderboard, rangeForScore, resultsSignature } from './tournamentP
 export const LEGACY_TEAM_PREDICTION_ID = 'whitefeather-team-predictions-2026';
 export const LEGACY_EVENT_DATE = '2026-11-15';
 
+// Keep stored range IDs stable so existing predictions remain compatible.
 export const LEGACY_SCORE_RANGES = [
-  { id: 'below10', label: 'Below 10', detail: 'Winner +5 · Loser −1', min: 0, max: 9, winnerBonus: 5, loserBonus: -1 },
-  { id: '10to16', label: '10–16', detail: 'Winner +3', min: 10, max: 16, winnerBonus: 3, loserBonus: 0 },
-  { id: '17to21', label: '17–21', detail: 'No bonus', min: 17, max: null, winnerBonus: 0, loserBonus: 0 },
+  { id: 'below10', label: '10 or less', detail: 'Winner +5 · Loser −1', min: 0, max: 10, winnerBonus: 5, loserBonus: -1 },
+  { id: '10to16', label: '11–17', detail: 'Winner +3', min: 11, max: 17, winnerBonus: 3, loserBonus: 0 },
+  { id: '17to21', label: '18 or more', detail: 'No bonus', min: 18, max: null, winnerBonus: 0, loserBonus: 0 },
 ];
 
 /** Validates a stored or drafted result; returns null when it is not a decided match. */
@@ -95,11 +96,11 @@ export function legacyResultPicks(results = {}) {
 }
 
 export function legacyResultsSignature(results = {}) {
-  return resultsSignature(buildLegacyModel(results));
+  return `november-rules-v2:${resultsSignature(buildLegacyModel(results))}`;
 }
 
 export function buildLegacyLeaderboard(results, entries) {
-  return buildLeaderboard(buildLegacyModel(results), entries);
+  return { ...buildLeaderboard(buildLegacyModel(results), entries), resultsSignature: legacyResultsSignature(results) };
 }
 
 /** Actual team standings for the November event, excluding unplayed fixtures. */
