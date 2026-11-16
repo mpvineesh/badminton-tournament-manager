@@ -284,7 +284,7 @@ export default function TournamentDetailsScreen({
                 className="w-full sm:w-auto btn-ghost"
                 onClick={onOpenPoints}
               >
-                Point Table
+                Leaderboard
               </button>
             </div>
           </>

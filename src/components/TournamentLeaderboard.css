@@ -1,0 +1,158 @@
+/* Tournament leaderboard. Mirrors the SMASHPICKS team leaderboard table and
+   takes its colours from the app theme so it reads in light and dark mode. */
+.tl-board {
+  --tl-surface: var(--app-surface, #102728);
+  --tl-raised: var(--app-surface-raised, #153335);
+  --tl-border: var(--app-border, #294746);
+  --tl-text: var(--app-text, #edf7f5);
+  --tl-muted: var(--app-muted, #a6c0ba);
+  --tl-accent: var(--app-accent, #c5f36b);
+  --tl-up: #8de3b4;
+  --tl-down: #ff9aa4;
+  color: var(--tl-text);
+}
+
+html:not(.dark) .tl-board {
+  --tl-up: #166534;
+  --tl-down: #a5283a;
+}
+
+.tl-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.tl-heading {
+  min-width: 0;
+}
+
+.tl-eyebrow {
+  color: var(--tl-accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.tl-heading h2 {
+  margin: 2px 0 4px;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.tl-heading p,
+.tl-note {
+  color: var(--tl-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tl-note {
+  margin: 12px 0 0;
+}
+
+.tl-section + .tl-section,
+.tl-table-wrap + .tl-section {
+  margin-top: 22px;
+}
+
+.tl-section h3 {
+  margin: 0 0 9px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tl-section h3 span {
+  color: var(--tl-muted);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.tl-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--tl-border);
+  border-radius: 14px;
+}
+
+.tl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tl-table th,
+.tl-table td {
+  border-bottom: 1px solid var(--tl-border);
+  padding: 16px 14px;
+  color: var(--tl-text);
+  text-align: right;
+}
+
+.tl-table th:nth-child(2) {
+  text-align: left;
+}
+
+.tl-table thead th {
+  color: var(--tl-muted);
+  background: var(--tl-raised);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tl-table tbody th {
+  font-weight: 700;
+}
+
+.tl-table tbody td:first-child {
+  color: var(--tl-muted);
+  font-weight: 700;
+}
+
+.tl-table strong {
+  color: var(--tl-accent);
+  font-size: 18px;
+}
+
+.tl-table td.is-up {
+  color: var(--tl-up);
+}
+
+.tl-table td.is-down {
+  color: var(--tl-down);
+}
+
+.tl-table tbody tr.is-leader {
+  background: var(--tl-raised);
+}
+
+.tl-table tbody tr.is-leader td:first-child {
+  color: var(--tl-accent);
+}
+
+.tl-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+@media (max-width: 600px) {
+  .tl-heading h2 {
+    font-size: 21px;
+  }
+
+  .tl-table {
+    font-size: 13px;
+  }
+
+  .tl-table th,
+  .tl-table td {
+    padding: 12px 10px;
+  }
+}
