@@ -84,6 +84,28 @@ function getCompletedResult(tournament, teamsById) {
       tournament.groupMatches || [],
       tournament.pointSystem || {}
     );
+    // A team-match event has one pool of teams playing each other, so the
+    // winner is the top team in that pool rather than the pool itself.
+    if (tournament.format === 'team-match' && (tournament.pools || []).length === 1) {
+      const rows = standings[tournament.pools[0].id] || [];
+      const describe = (row) => {
+        const team = row ? teamsById[row.teamId] : null;
+        return {
+          name: team?.name || row?.teamId || '-',
+          members: (team?.players || []).map((pid) => playersById[pid]?.name || '').filter(Boolean),
+        };
+      };
+      if (!rows[0]) return null;
+      const winner = describe(rows[0]);
+      const runner = describe(rows[1]);
+      return {
+        winner: winner.name,
+        winnerMembers: winner.members,
+        runner: runner.name,
+        runnerMembers: runner.members,
+      };
+    }
+
     const rankedGroups = (tournament.pools || [])
       .map((pool) => {
         const rows = standings[pool.id] || [];
