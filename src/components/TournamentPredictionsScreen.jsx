@@ -19,7 +19,7 @@ import {
   submissionDeadlineLabel,
 } from '../utils/tournamentPredictions.js';
 
-// Live-data twin of TeamPredictionsScreen. Same look and flow, but teams,
+// SMASHPICKS predictions for a tournament: teams,
 // fixtures and scoring rules come from the selected tournament, picks lock
 // once a match result is recorded, and every save is keyed by tournament id.
 

@@ -1,4 +1,3 @@
-import TeamLeaderboardScreen from './components/TeamLeaderboardScreen.jsx';
 import BonusRulesEditor from './components/BonusRulesEditor.jsx';
 import { getLoserBonusRules, getLoserPenaltyRules, getWinnerBonusRules } from './utils/pointSystem.js';
 // ================================
@@ -29,7 +28,6 @@ import TournamentSettingsScreen from './components/TournamentSettingsScreen.jsx'
 import ProfileScreen from './components/ProfileScreen.jsx';
 import SkillLevelScreen from './components/SkillLevelScreen.jsx';
 import PredictionsScreen from './components/PredictionsScreen.jsx';
-import TeamPredictionsScreen from './components/TeamPredictionsScreen.jsx';
 import TournamentPredictionsScreen from './components/TournamentPredictionsScreen.jsx';
 import TournamentFixturesScreen from './components/TournamentFixturesScreen.jsx';
 import TeamTournamentBuilder from './components/TeamTournamentBuilder.jsx';
@@ -42,12 +40,6 @@ import {
   resultsSignature,
   submissionDeadlineLabel,
 } from './utils/tournamentPredictions.js';
-import { buildLegacyLeaderboard, LEGACY_EVENT_DATE } from './utils/legacyPredictionResults.js';
-import FixturesScreen from './components/FixturesScreen.jsx';
-import {
-  getTournamentRosterPlayerIds,
-  TEAM_MATCH_TOURNAMENT_NAME,
-} from './data/teamMatchFixtures.js';
 import { roundRobin, toIsoLocal, computeStandings, isoDateToday } from './utils/tournament.js';
 import {
   initAnalytics,
@@ -85,9 +77,6 @@ import {
   getTeamPredictionLeaderboard,
   subscribeTeamPredictionLeaderboard,
   publishTeamPredictionLeaderboard,
-  getTeamMatchResults,
-  saveTeamMatchResult,
-  LEGACY_TEAM_PREDICTION_TOURNAMENT_ID,
   savePrediction,
   isFirebaseMode,
   uploadPlayerProfilePhoto,
@@ -140,7 +129,7 @@ export default function App() {
   const AUTH_MOBILE_KEY = 'tm_logged_mobile';
   const ACTIVE_MENU_KEY = 'tm_active_menu';
   // Screens that draw their own SMASHPICKS chrome instead of the app header/nav.
-  const FULL_BLEED_MENUS = ['team-leaderboard', 'team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures', 'tv'];
+  const FULL_BLEED_MENUS = ['tournament-picks', 'tournament-fixtures', 'tv'];
   // Tournament-scoped SMASHPICKS screens that are shareable without logging in.
   const PUBLIC_TOURNAMENT_MENUS = ['tournament-picks', 'tournament-fixtures', 'tv'];
   const RESTORABLE_MENUS = new Set([
@@ -151,9 +140,6 @@ export default function App() {
     'profile',
     'skill-level',
     'predictions',
-    'fixtures',
-    'team-predictions',
-    'team-leaderboard',
     'tournaments',
     'tournament-settings',
     'scoreboard',
@@ -188,7 +174,6 @@ export default function App() {
   const [tournamentStatus, setTournamentStatus] = useState('Upcoming');
   const [groupAddSelections, setGroupAddSelections] = useState({});
   const [tournamentsList, setTournamentsList] = useState([]);
-  const [teamRosterPlayerIds, setTeamRosterPlayerIds] = useState({});
   const [tournamentsLoading, setTournamentsLoading] = useState(false);
   const [tournamentsError, setTournamentsError] = useState('');
   const [tournamentView, setTournamentView] = useState('list');
@@ -321,7 +306,7 @@ export default function App() {
         urlNav.playerStatsId
       ) {
         setSelectedPlayerStatsId(urlNav.playerStatsId);
-        setPlayerStatsReturnMenu('team-predictions');
+        setPlayerStatsReturnMenu('login');
         setActiveMenu('player-stats');
       } else if (PUBLIC_TOURNAMENT_MENUS.includes(urlNav?.activeMenu) && urlNav.selectedTournamentId) {
         loadTournament(urlNav.selectedTournamentId)
@@ -330,9 +315,7 @@ export default function App() {
         setActiveMenu(urlNav.activeMenu);
       } else {
         setActiveMenu(
-          ['team-predictions', 'fixtures', 'team-leaderboard', 'tv'].includes(urlNav?.activeMenu)
-            ? urlNav.activeMenu
-            : 'login'
+          urlNav?.activeMenu === 'tv' ? 'tv' : 'login'
         );
       }
     }
@@ -396,28 +379,6 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needsLiveTournaments]);
-
-  useEffect(() => {
-    if (activeMenu !== 'fixtures' && activeMenu !== 'team-predictions') return undefined;
-    let active = true;
-    const loadRosterPlayerIds = async () => {
-      try {
-        const rows = tournamentsList.length ? tournamentsList : await listTournaments();
-        const tournament = rows.find(
-          (row) =>
-            String(row?.name || row?.payload?.name || '').trim().toLowerCase() ===
-            TEAM_MATCH_TOURNAMENT_NAME.toLowerCase()
-        );
-        if (active) setTeamRosterPlayerIds(getTournamentRosterPlayerIds(tournament));
-      } catch (error) {
-        console.error('Unable to load team tournament player links.', error);
-      }
-    };
-    void loadRosterPlayerIds();
-    return () => {
-      active = false;
-    };
-  }, [activeMenu, tournamentsList]);
 
   // Fire a foreground notification when one of the logged-in player's matches
   // transitions to Live. Seeds on the first snapshot so we don't alert for
@@ -877,37 +838,6 @@ export default function App() {
     }
   }
 
-  async function saveTeamMatchPredictions(input) {
-    if (!isSubmissionOpen(LEGACY_EVENT_DATE)) {
-      throw new Error(`Submissions closed on ${submissionDeadlineLabel(LEGACY_EVENT_DATE)}.`);
-    }
-    setPredictionSaving(true);
-    try {
-      return await savePrediction({
-        tournamentId: 'whitefeather-team-predictions-2026',
-        predictorMobile: input.mobile,
-        payload: {
-          kind: 'team-match-predictions',
-          predictorName: input.name,
-          predictions: input.predictions,
-        },
-        publicSummary: input.publicSummary,
-      });
-    } catch (e) {
-      console.error(e);
-      throw new Error(e?.message || 'Unable to submit predictions.');
-    } finally {
-      setPredictionSaving(false);
-    }
-  }
-
-  async function loadTeamMatchPredictionByMobile(mobile) {
-    return getPredictionByTournamentAndUser(
-      'whitefeather-team-predictions-2026',
-      mobile
-    );
-  }
-
   async function loadTeamPredictionPlayerByMobile(mobile) {
     return getPlayerByMobile(mobile);
   }
@@ -925,42 +855,7 @@ export default function App() {
     }
   }
 
-  async function publishLegacyTeamPredictionSummary(input) {
-    if (!isFirebaseMode()) return;
-    return publishTeamPredictionSummary(input);
-  }
-
-  // Static SMASHPICKS pages (/predictions, /fixtures): results live in their own
-  // store and the leaderboard is rebuilt whenever an admin saves a result.
-  async function loadLegacyMatchResults() {
-    return getTeamMatchResults(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID);
-  }
-
-  async function loadLegacyPredictionLeaderboard() {
-    return getTeamPredictionLeaderboard(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID);
-  }
-
-  async function refreshLegacyPredictionLeaderboard() {
-    const [results, entries] = await Promise.all([
-      getTeamMatchResults(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID),
-      listTeamMatchPredictionDetails(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID),
-    ]);
-    if (!entries.length) return null;
-    const leaderboard = buildLegacyLeaderboard(results, entries);
-    await publishTeamPredictionLeaderboard(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID, leaderboard);
-    return leaderboard;
-  }
-
-  async function saveLegacyMatchResult(fixtureId, result) {
-    if (!isAdminUser) throw new Error('Only admin can update match results.');
-    const results = await saveTeamMatchResult(LEGACY_TEAM_PREDICTION_TOURNAMENT_ID, fixtureId, result);
-    refreshLegacyPredictionLeaderboard().catch((error) => {
-      console.error('Unable to update the prediction leaderboard.', error);
-    });
-    return results;
-  }
-
-  // Tournament-scoped SMASHPICKS: same storage as the legacy page, keyed by
+  // Tournament-scoped SMASHPICKS: predictions are stored per tournament, keyed by
   // the real tournament id so every tournament gets its own prediction pool.
   async function saveTournamentPredictions(tournamentId, input) {
     const tournament = liveTournamentFor(tournamentId) || selectedTournament;
@@ -1333,6 +1228,21 @@ export default function App() {
   }
   const openTournamentPicks = (id) => openTournamentSmashPicks(id, 'tournament-picks');
   const openTournamentFixtures = (id) => openTournamentSmashPicks(id, 'tournament-fixtures');
+  // Header shortcuts open the tournament members care about right now: the
+  // next one still to be played, otherwise the most recent one.
+  function openFeaturedTournament(open) {
+    setMenuOpen(false);
+    const today = isoDateToday();
+    const dated = (tournamentsList || [])
+      .map((row) => ({ id: row?.id, date: String(row?.payload?.eventDate || '') }))
+      .filter((row) => row.id && /^\d{4}-\d{2}-\d{2}$/.test(row.date));
+    const upcoming = dated.filter((row) => row.date >= today).sort((a, b) => a.date.localeCompare(b.date))[0];
+    const latest = dated.filter((row) => row.date < today).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const target = upcoming || latest || (tournamentsList || [])[0];
+    if (target?.id) open(target.id);
+    else setActiveMenu('tournaments');
+  }
+
   // Pins the TV dashboard to one tournament (URL: /tournament/<id>/tv).
   const openTournamentTv = (id) => openTournamentSmashPicks(id, 'tv');
   // Unpinned TV dashboard: follows whichever tournament is live (URL: /tv).
@@ -3257,14 +3167,8 @@ export default function App() {
           setMenuOpen(false);
           setActiveMenu('skill-level');
         }}
-        onPredictions={() => {
-          setMenuOpen(false);
-          setActiveMenu('team-predictions');
-        }}
-        onFixtures={() => {
-          setMenuOpen(false);
-          setActiveMenu('fixtures');
-        }}
+        onPredictions={() => openFeaturedTournament(openTournamentPicks)}
+        onFixtures={() => openFeaturedTournament(openTournamentFixtures)}
         onProfile={() => {
           setMenuOpen(false);
           setActiveMenu('profile');
@@ -3404,43 +3308,6 @@ export default function App() {
             savePrediction={saveMyPrediction}
             busy={predictionSaving}
             error={predictionError}
-          />
-        ) : activeMenu === 'team-predictions' ? (
-          <TeamPredictionsScreen
-            onOpenTeamLeaderboard={() => setActiveMenu('team-leaderboard')}
-            onSave={saveTeamMatchPredictions}
-            loadPredictionByMobile={loadTeamMatchPredictionByMobile}
-            loadPlayerByMobile={loadTeamPredictionPlayerByMobile}
-            publishLegacySummary={publishLegacyTeamPredictionSummary}
-            loadPredictions={listTeamMatchPredictions}
-            loadPredictionDetails={listTeamMatchPredictionDetails}
-            loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
-            initializePredictionAnalytics={initializeTeamMatchPredictionAnalytics}
-            loadResults={loadLegacyMatchResults}
-            loadLeaderboard={loadLegacyPredictionLeaderboard}
-            refreshLeaderboard={refreshLegacyPredictionLeaderboard}
-            isAdmin={isAdminUser}
-            authenticatedMobile={authenticatedMobile}
-            onPredictionIdentity={handleTeamPredictionIdentity}
-            busy={predictionSaving}
-            onOpenFixtures={() => setActiveMenu('fixtures')}
-            players={playersDbList}
-            rosterPlayerIds={teamRosterPlayerIds}
-            onOpenPlayer={openPlayerProfile}
-          />
-        ) : activeMenu === 'team-leaderboard' ? (
-          <TeamLeaderboardScreen loadResults={loadLegacyMatchResults} onOpenPredictions={() => setActiveMenu('team-predictions')} onOpenFixtures={() => setActiveMenu('fixtures')} />
-        ) : activeMenu === 'fixtures' ? (
-          <FixturesScreen
-            onOpenTeamLeaderboard={() => setActiveMenu('team-leaderboard')}
-            loadPredictionAnalytics={getTeamMatchPredictionAnalytics}
-            loadResults={loadLegacyMatchResults}
-            onSaveResult={saveLegacyMatchResult}
-            isAdmin={isAdminUser}
-            onOpenPredictions={() => setActiveMenu('team-predictions')}
-            players={playersDbList}
-            rosterPlayerIds={teamRosterPlayerIds}
-            onOpenPlayer={openPlayerProfile}
           />
         ) : activeMenu === 'tv' ? (
           <TvDisplayScreen

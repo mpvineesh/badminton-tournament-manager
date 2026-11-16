@@ -1,5 +1,16 @@
 import React from 'react';
-import { normalizeRosterPlayerName } from '../data/teamMatchFixtures.js';
+
+// Compares names loosely: ignores accents, case, spacing and a leading
+// position letter such as "A - ".
+function normalizeRosterPlayerName(name) {
+  return String(name || '')
+    .normalize('NFKD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/^[a-e](?:\s*[-:.)]\s*|\s+)/i, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
 
 export function findUniquePlayerByName(name, players, playerId) {
   if (playerId != null) {

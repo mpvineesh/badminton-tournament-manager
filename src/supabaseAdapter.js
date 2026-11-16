@@ -3,7 +3,6 @@ import {
   addDoc,
   collection,
   deleteDoc,
-  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -1131,8 +1130,8 @@ export async function getPredictionByTournamentAndUser(tournamentId, predictorMo
  * Only the predictor's display name and save time are returned alongside the
  * payload; mobile numbers are not included in the member forecast view.
  */
-// The original SMASHPICKS page stored its entries under this fixed id. The
-// tournament-scoped screens pass the real tournament id instead.
+// The removed November 2026 SMASHPICKS page stored its entries under this
+// fixed id; those records are kept. Every screen now passes a real tournament id.
 export const LEGACY_TEAM_PREDICTION_TOURNAMENT_ID = 'whitefeather-team-predictions-2026';
 
 function storedTeamId(value) {
@@ -1382,67 +1381,6 @@ function predictionAnalyticsIncrements(previousRows, nextPayload) {
 }
 
 const MOCK_LEADERBOARDS_KEY = 'bfm_mock_prediction_leaderboards';
-const MOCK_RESULTS_KEY = 'bfm_mock_prediction_results';
-
-/**
- * Match results for the static SMASHPICKS pages, which have no tournament of
- * their own. Keyed by fixture id: { team1Score, team2Score, updated_at }.
- */
-export async function getTeamMatchResults(tournamentId = LEGACY_TEAM_PREDICTION_TOURNAMENT_ID) {
-  const tid = String(tournamentId || '').trim();
-  if (!tid) return {};
-  if (isMockMode()) {
-    return readStore(MOCK_RESULTS_KEY, {})[tid] || {};
-  }
-  if (isFirebaseMode()) {
-    const fdb = ensureFirebaseDb('getTeamMatchResults');
-    const snapshot = await getDoc(doc(fdb, 'team_prediction_results', tid));
-    const data = snapshot.exists() ? snapshot.data() : null;
-    return data?.results && typeof data.results === 'object' ? data.results : {};
-  }
-  return {};
-}
-
-/** Admin only (enforced by the caller): record or clear one fixture's result. */
-export async function saveTeamMatchResult(tournamentId, fixtureId, result) {
-  const tid = String(tournamentId || '').trim();
-  const fid = String(fixtureId || '').trim();
-  if (!tid || !fid) throw new Error('[saveTeamMatchResult] Missing tournament or fixture id');
-  const nowIso = new Date().toISOString();
-  const value = result
-    ? {
-        team1Score: Number(result.team1Score),
-        team2Score: Number(result.team2Score),
-        updated_at: nowIso,
-      }
-    : null;
-
-  if (isMockMode()) {
-    const all = readStore(MOCK_RESULTS_KEY, {});
-    const results = { ...(all[tid] || {}) };
-    if (value) results[fid] = value;
-    else delete results[fid];
-    all[tid] = results;
-    writeStore(MOCK_RESULTS_KEY, all);
-    return results;
-  }
-  if (!isFirebaseMode()) {
-    throw new Error('[saveTeamMatchResult] Match results are only supported in Firebase mode');
-  }
-  await ensureAnonymousAuth();
-  const fdb = ensureFirebaseDb('saveTeamMatchResult');
-  await setDoc(
-    doc(fdb, 'team_prediction_results', tid),
-    {
-      tournament_id: tid,
-      results: { [fid]: value ?? deleteField() },
-      updated_at: nowIso,
-    },
-    { merge: true }
-  );
-  return getTeamMatchResults(tid);
-}
-
 /**
  * Public, identity-safe prediction leaderboard for a tournament: names with
  * correct-pick counts only. Written by the client that records a result (or

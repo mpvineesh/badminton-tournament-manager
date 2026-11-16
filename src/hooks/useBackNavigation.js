@@ -14,9 +14,6 @@ const MENU_TO_PATH = {
   profile: '/profile',
   'skill-level': '/skill',
   predictions: '/tournament-predictions',
-  fixtures: '/fixtures',
-  'team-leaderboard': '/team-leaderboard',
-  'team-predictions': '/predictions',
   scoreboard: '/scoreboard',
   tv: '/tv',
   tournaments: '/tournaments',
@@ -24,9 +21,17 @@ const MENU_TO_PATH = {
 };
 
 // Screens reachable without logging in (shareable SMASHPICKS pages).
-export const PUBLIC_MENUS = ['team-leaderboard', 'team-predictions', 'fixtures', 'tournament-picks', 'tournament-fixtures', 'player-stats', 'tv'];
+export const PUBLIC_MENUS = ['tournament-picks', 'tournament-fixtures', 'player-stats', 'tv'];
 // Screens that need a tournament loaded before they can render.
 export const TOURNAMENT_MENUS = ['tournament', 'tournament-settings', 'tournaments', 'tournament-picks', 'tournament-fixtures', 'tv'];
+
+const NOVEMBER_2026_TOURNAMENT_ID = 'd4SO6tI5BugJcnftsUdn';
+const LEGACY_NOVEMBER_PATHS = {
+  '/predictions': 'tournament-picks',
+  '/team-predictions': 'tournament-picks',
+  '/team-leaderboard': 'tournament-picks',
+  '/fixtures': 'tournament-fixtures',
+};
 
 const keyOf = (nav) =>
   `${nav.activeMenu}|${nav.tournamentView || 'list'}|${nav.selectedTournamentId || ''}|${nav.playerStatsId || ''}`;
@@ -60,8 +65,14 @@ export function pathToNav(pathname) {
       playerStatsId: decodeURIComponent(playerMatch[1]),
     };
   }
-  if (clean === '/team-predictions' || clean === '/predictions') {
-    return { activeMenu: 'team-predictions', tournamentView: 'list', selectedTournamentId: null };
+  // Links shared for the November 2026 event pointed at its own pages; they now
+  // open the same tournament's predictions and fixtures.
+  if (LEGACY_NOVEMBER_PATHS[clean]) {
+    return {
+      activeMenu: LEGACY_NOVEMBER_PATHS[clean],
+      tournamentView: 'list',
+      selectedTournamentId: NOVEMBER_2026_TOURNAMENT_ID,
+    };
   }
   if (clean === '/tournament-predictions') {
     return { activeMenu: 'predictions', tournamentView: 'list', selectedTournamentId: null };

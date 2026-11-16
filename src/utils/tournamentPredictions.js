@@ -1,6 +1,5 @@
 // Builds a tournament-agnostic "prediction model" from any saved tournament so
-// the SMASHPICKS fixtures and predictions screens can run on live data instead
-// of the hard-coded roster in data/teamMatchFixtures.js.
+// the SMASHPICKS fixtures and predictions screens run on live tournament data.
 import { isoDateToday } from './tournament.js';
 import {
   getLoserBonusRules,

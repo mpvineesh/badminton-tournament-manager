@@ -3,9 +3,8 @@ import PlayerProfileLink from './PlayerProfileLink.jsx';
 import { buildPredictionModel, formatEventDate } from '../utils/tournamentPredictions.js';
 import './FixturesScreen.css';
 
-// Live-data twin of FixturesScreen: same layout and styles, but every team,
-// player and match comes from the selected tournament instead of the static
-// roster, and finished matches show their result.
+// SMASHPICKS fixtures for a tournament: every team, player and match comes
+// from the selected tournament, and finished matches show their result.
 
 function FixturePrediction({ fixture, stats, loading, error, compact = false }) {
   if (loading) {
