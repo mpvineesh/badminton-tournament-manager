@@ -654,7 +654,7 @@ export default function TournamentPredictionsScreen({
               </div>
               {analyticsError ? (
                 <p className="smash-community-error" role="alert">{analyticsError}</p>
-              ) : analytics.submissions === 0 && completedCount === 0 ? (
+              ) : analytics.submissions === 0 ? (
                 <p className="smash-community-empty">Team odds will appear once predictions are submitted.</p>
               ) : (
                 <div className="smash-community-bars">
@@ -674,8 +674,7 @@ export default function TournamentPredictionsScreen({
                 </div>
               )}
               <p className="smash-community-footnote">
-                Estimated from the community’s match picks across {fixtures.length} fixtures
-                {completedCount > 0 ? `, with ${completedCount} recorded ${completedCount === 1 ? 'result' : 'results'} applied` : ''}.
+                Estimated from the community’s match picks across {fixtures.length} fixtures.
               </p>
             </section>
 

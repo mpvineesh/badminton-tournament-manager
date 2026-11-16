@@ -329,13 +329,10 @@ export function calculateCommunityOdds(model, analytics, simulations = DEFAULT_S
       const team1Votes = Number(stats.team1Votes) || 0;
       const team2Votes = Number(stats.team2Votes) || 0;
       const totalVotes = team1Votes + team2Votes;
-      let winnerSide;
-      if (fixture.completed && fixture.winnerTeamId) {
-        winnerSide = fixture.winnerTeamId === fixture.team1.id ? 0 : 1;
-      } else {
-        const team1WinShare = totalVotes > 0 ? team1Votes / totalVotes : 0.5;
-        winnerSide = random() >= team1WinShare ? 1 : 0;
-      }
+      // The community forecast reflects what members predicted, so recorded
+      // results are deliberately ignored: it stays the pre-tournament picture.
+      const team1WinShare = totalVotes > 0 ? team1Votes / totalVotes : 0.5;
+      const winnerSide = random() >= team1WinShare ? 1 : 0;
       const winnerIndex = (winnerSide === 0 ? fixture.team1 : fixture.team2).index;
       const loserIndex = (winnerSide === 0 ? fixture.team2 : fixture.team1).index;
       const side = winnerSide === 0 ? 'team1' : 'team2';
@@ -344,20 +341,16 @@ export function calculateCommunityOdds(model, analytics, simulations = DEFAULT_S
       const rangesTotal = Object.values(rangeCounts).reduce((sum, count) => sum + (Number(count) || 0), 0);
       const noRangeCount = Math.max(0, sideVotes - rangesTotal);
       let range = null;
-      if (fixture.completed) {
-        range = rangeForScore(model.scoreRanges, fixture.loserScore);
-      } else {
-        let rangeRoll = random() * Math.max(1, sideVotes);
-        if (rangeRoll >= noRangeCount) {
-          rangeRoll -= noRangeCount;
-          for (const scoreRange of model.scoreRanges) {
-            const count = Number(rangeCounts[scoreRange.id]) || 0;
-            if (rangeRoll < count) {
-              range = rangesById.get(scoreRange.id);
-              break;
-            }
-            rangeRoll -= count;
+      let rangeRoll = random() * Math.max(1, sideVotes);
+      if (rangeRoll >= noRangeCount) {
+        rangeRoll -= noRangeCount;
+        for (const scoreRange of model.scoreRanges) {
+          const count = Number(rangeCounts[scoreRange.id]) || 0;
+          if (rangeRoll < count) {
+            range = rangesById.get(scoreRange.id);
+            break;
           }
+          rangeRoll -= count;
         }
       }
       scores[winnerIndex] += model.winnerPoints;
