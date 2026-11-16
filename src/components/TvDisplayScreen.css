@@ -150,7 +150,7 @@
   height: 2.2em;
   border: 1px solid var(--tv-border);
   border-radius: 0.6em;
-  color: var(--tv-muted);
+  color: var(--tv-text);
   background: rgb(255 255 255 / 4%);
   font-size: 0.9em;
   transition: border-color 150ms ease, color 150ms ease;

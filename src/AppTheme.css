@@ -15,6 +15,9 @@
   --app-danger-hover-surface: #46272c;
   --app-danger-hover-border: #a85862;
   --app-danger-hover-text: #ffd2d8;
+  --app-success-surface: #173a2c;
+  --app-success-border: #2f6a4c;
+  --app-success-text: #8de3b4;
   min-height: 100vh;
   color: var(--app-text);
   background:
@@ -29,7 +32,7 @@ html:not(.dark) .app-theme {
   --app-surface-raised: #f4f8f5;
   --app-border: #d1dfd9;
   --app-text: #172d29;
-  --app-muted: #617872;
+  --app-muted: #52665f;
   --app-accent: #557c22;
   --app-warning-surface: #fff7e6;
   --app-warning-border: #e8d5a8;
@@ -43,6 +46,9 @@ html:not(.dark) .app-theme {
   background:
     radial-gradient(ellipse at 82% 0%, rgb(197 243 107 / 22%), transparent 34rem),
     var(--app-bg);
+  --app-success-surface: #ecfdf5;
+  --app-success-border: #a7e3c4;
+  --app-success-text: #166534;
 }
 
 .app-theme .app-theme-main {
@@ -163,6 +169,8 @@ html:not(.dark) .app-theme {
 .app-theme main [class~="text-slate-500"],
 .app-theme main [class~="text-slate-400"],
 .app-theme main [class~="text-navy-800"],
+.app-theme main [class~="text-navy-800/90"],
+.app-theme main [class~="text-navy-500"],
 .app-theme main [class~="text-navy-700"],
 .app-theme main [class~="text-navy-600"] {
   color: var(--app-muted);
@@ -199,7 +207,13 @@ html:not(.dark) .app-theme {
   background-image: linear-gradient(115deg, var(--app-surface-raised), var(--app-surface));
 }
 
+/* These panels stay dark in both themes, so text inside them always uses the
+   light-on-dark palette. */
 .app-theme main [class*="from-navy-800"][class*="to-navy-900"] {
+  --app-text: #edf7f5;
+  --app-muted: #a6c0ba;
+  --app-accent: #c5f36b;
+  color: var(--app-text);
   background-image:
     radial-gradient(circle at 90% 0%, rgb(197 243 107 / 12%), transparent 45%),
     linear-gradient(135deg, #123132, #091d1f 78%);
@@ -216,6 +230,34 @@ html:not(.dark) .app-theme {
 .app-theme main [class~="btn-primary"]:hover,
 .app-theme main [class~="btn-gold"]:hover {
   background: #d5fa8c;
+}
+
+html:not(.dark) .app-theme main [class~="btn-primary"],
+html:not(.dark) .app-theme main [class~="btn-gold"] {
+  border-color: #466a1a;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+html:not(.dark) .app-theme main [class~="btn-primary"]:hover,
+html:not(.dark) .app-theme main [class~="btn-gold"]:hover {
+  background: #466a1a;
+}
+
+html:not(.dark) .app-theme main [class*="from-navy-800"][class*="to-navy-900"] [class~="btn-primary"],
+html:not(.dark) .app-theme main [class*="from-navy-800"][class*="to-navy-900"] [class~="btn-gold"] {
+  border-color: #d6ff91;
+  color: #13241b;
+}
+
+html:not(.dark) .app-theme main [class*="from-navy-800"][class*="to-navy-900"] [class~="btn-primary"]:hover,
+html:not(.dark) .app-theme main [class*="from-navy-800"][class*="to-navy-900"] [class~="btn-gold"]:hover {
+  background: #d5fa8c;
+}
+
+/* Gold skill badges keep a gold fill in both themes, so their text stays dark. */
+.app-theme main [class*="from-gold-400"][class*="to-gold-500"] {
+  color: #13241b;
 }
 
 .app-theme main [class~="btn-ghost"] {
@@ -270,16 +312,74 @@ html:not(.dark) .app-theme {
   background-color: var(--app-warning-surface);
 }
 
-.app-theme main [class~="text-orange-700"] {
+/* Status tints. Tailwind's pale -50 backgrounds and -700 text are written for
+   a white page, so each family is mapped to a surface/border/text set that
+   keeps its contrast in both themes. */
+.app-theme main [class~="bg-emerald-50"],
+.app-theme main [class~="bg-emerald-50/70"],
+.app-theme main [class~="hover:bg-emerald-100"]:hover {
+  border-color: var(--app-success-border);
+  color: var(--app-success-text);
+  background-color: var(--app-success-surface);
+}
+
+.app-theme main [class~="border-emerald-200"],
+.app-theme main [class~="border-emerald-300"] {
+  border-color: var(--app-success-border);
+}
+
+.app-theme main [class~="text-emerald-600"],
+.app-theme main [class~="text-emerald-700"],
+.app-theme main [class~="text-emerald-800"],
+.app-theme main [class~="text-emerald-800/90"],
+.app-theme main [class~="text-emerald-900"] {
+  color: var(--app-success-text);
+}
+
+.app-theme main [class~="bg-yellow-50"],
+.app-theme main [class~="bg-amber-50"] {
+  border-color: var(--app-warning-border);
+  color: var(--app-warning-text);
+  background-color: var(--app-warning-surface);
+}
+
+.app-theme main [class~="border-yellow-200"],
+.app-theme main [class~="border-amber-200"],
+.app-theme main [class~="border-amber-300"],
+.app-theme main [class~="border-orange-200"],
+.app-theme main [class~="border-orange-300"] {
+  border-color: var(--app-warning-border);
+}
+
+.app-theme main [class~="text-orange-700"],
+.app-theme main [class~="text-yellow-700"],
+.app-theme main [class~="text-amber-700"],
+.app-theme main [class~="text-amber-900"],
+.app-theme main [class~="text-amber-950"] {
   color: var(--app-warning-text);
 }
 
-.app-theme main [class~="text-emerald-700"] {
-  color: #8de3b4;
+.app-theme main [class~="bg-red-50"],
+.app-theme main [class~="bg-rose-50"] {
+  border-color: var(--app-danger-border);
+  color: var(--app-danger-text);
+  background-color: var(--app-danger-surface);
 }
 
-.app-theme main [class~="text-rose-700"] {
-  color: #ff9aa4;
+.app-theme main [class~="border-red-200"],
+.app-theme main [class~="border-rose-200"],
+.app-theme main [class~="border-rose-300"] {
+  border-color: var(--app-danger-border);
+}
+
+.app-theme main [class~="text-red-600"],
+.app-theme main [class~="text-red-700"],
+.app-theme main [class~="text-red-800"],
+.app-theme main [class~="text-rose-600"],
+.app-theme main [class~="text-rose-700"],
+.app-theme main [class~="text-rose-800"],
+.app-theme main [class~="text-rose-900"] {
+  color: var(--app-danger-text);
 }
 
 .app-theme main input:not([type="checkbox"]):not([type="radio"]),
