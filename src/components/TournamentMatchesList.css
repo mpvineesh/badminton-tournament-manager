@@ -51,9 +51,16 @@ html:not(.dark) .tm-matches {
   gap: 8px;
 }
 
+.tm-matches-tools .btn-ghost {
+  height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 14px;
+}
+
 .tm-matches-filter select {
   max-width: 190px;
-  min-height: 40px;
+  height: 40px;
   border: 1px solid var(--tm-border);
   border-radius: 10px;
   padding: 0 10px;
@@ -288,6 +295,20 @@ html:not(.dark) .tm-matches {
   min-width: 0;
 }
 
+.tm-actions.is-editing {
+  flex-wrap: wrap;
+}
+
+.tm-actions .tm-cancel {
+  padding: 0 11px;
+}
+
+.tm-error {
+  flex-basis: 100%;
+  color: var(--app-danger-text, #ff9aa4);
+  font-size: 12px;
+}
+
 .tm-actions .tm-open.is-primary {
   border-color: var(--tm-accent);
   color: var(--app-bg, #071719);
@@ -299,6 +320,20 @@ html:not(.dark) .tm-actions .tm-open.is-primary {
 }
 
 @media (max-width: 640px) {
+  .tm-matches-tools {
+    width: 100%;
+  }
+
+  .tm-matches-filter {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .tm-matches-filter select {
+    width: 100%;
+    max-width: none;
+  }
+
   .tm-grid {
     grid-template-columns: 1fr;
     gap: 10px;

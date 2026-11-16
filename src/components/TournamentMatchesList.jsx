@@ -47,8 +47,11 @@ export default function TournamentMatchesList({
   setQuickScore,
   onQuickSave,
   saving,
+  canEditCompleted = false,
 }) {
   const [teamId, setTeamId] = React.useState('all');
+  // Key of the completed match whose score an admin is correcting, if any.
+  const [editing, setEditing] = React.useState({ key: '', error: '' });
   const teams = Array.isArray(tournament?.teams) ? tournament.teams : [];
   const teamsById = React.useMemo(() => Object.fromEntries(teams.map((team) => [team.id, team])), [teams]);
   const playersById = React.useMemo(
@@ -58,7 +61,34 @@ export default function TournamentMatchesList({
 
   React.useEffect(() => {
     setTeamId('all');
+    setEditing({ key: '', error: '' });
   }, [tournament?.id]);
+
+  const stopEditing = (match) => {
+    // Drop the draft so the inputs show the saved score next time.
+    setQuickScore(match, 'a', match.scoreA ?? '');
+    setQuickScore(match, 'b', match.scoreB ?? '');
+    setEditing({ key: '', error: '' });
+  };
+  const updateResult = async (match, key) => {
+    const a = Number(getQuickScore(match, 'a'));
+    const b = Number(getQuickScore(match, 'b'));
+    const entered = [getQuickScore(match, 'a'), getQuickScore(match, 'b')].every((value) => value !== '' && value != null);
+    // Same rule the scorer uses: a finished game reaches 21 with a two-point lead.
+    if (!entered || !Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0 || Math.max(a, b) < 21 || Math.abs(a - b) < 2) {
+      setEditing({ key, error: 'Enter a finished score: 21 or more for the winner, with a two-point lead.' });
+      return;
+    }
+    await onQuickSave(match);
+    setEditing({ key: '', error: '' });
+  };
+  const clearResult = async (match) => {
+    if (!window.confirm('Clear this result? The match goes back to upcoming and the standings are recalculated.')) return;
+    setQuickScore(match, 'a', '');
+    setQuickScore(match, 'b', '');
+    await onQuickSave(match, { a: '', b: '' });
+    setEditing({ key: '', error: '' });
+  };
 
   const all = Array.isArray(matches) ? matches : [];
   const visible = teamId === 'all'
@@ -136,6 +166,30 @@ export default function TournamentMatchesList({
                   const winnerB = decided && match.winnerTeamId === match.teamBId;
                   const hasScore = match.scoreA != null && match.scoreB != null;
                   const scorable = isScorable(match.status);
+                  const cardKey = `${match.stage}-${match.id}`;
+                  const isEditing = !scorable && editing.key === cardKey;
+                  const scoreInputs = (
+                    <>
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        aria-label={`${title}: first side score`}
+                        value={getQuickScore(match, 'a')}
+                        onChange={(event) => setQuickScore(match, 'a', event.target.value)}
+                        placeholder="A"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        aria-label={`${title}: second side score`}
+                        value={getQuickScore(match, 'b')}
+                        onChange={(event) => setQuickScore(match, 'b', event.target.value)}
+                        placeholder="B"
+                      />
+                    </>
+                  );
                   const renderSide = (side, isWinner) => (
                     <div className={`tm-team ${isWinner ? 'is-winner' : ''} ${decided && !isWinner ? 'is-loser' : ''}`}>
                       {(side.teamName || isWinner) && (
@@ -145,7 +199,7 @@ export default function TournamentMatchesList({
                     </div>
                   );
                   return (
-                    <article className={`tm-card ${chip.className}`} key={`${match.stage}-${match.id}`}>
+                    <article className={`tm-card ${chip.className}`} key={cardKey}>
                       <div className="tm-card-title">
                         <span>
                           {title}
@@ -163,40 +217,38 @@ export default function TournamentMatchesList({
                         </span>
                         {renderSide(sideB, winnerB)}
                       </div>
-                      <div className="tm-actions">
-                        {scorable && (
-                          <>
-                            <input
-                              type="number"
-                              min={0}
-                              inputMode="numeric"
-                              aria-label={`${title}: first side score`}
-                              value={getQuickScore(match, 'a')}
-                              onChange={(event) => setQuickScore(match, 'a', event.target.value)}
-                              placeholder="A"
-                            />
-                            <input
-                              type="number"
-                              min={0}
-                              inputMode="numeric"
-                              aria-label={`${title}: second side score`}
-                              value={getQuickScore(match, 'b')}
-                              onChange={(event) => setQuickScore(match, 'b', event.target.value)}
-                              placeholder="B"
-                            />
-                            <button type="button" className="tm-save" onClick={() => onQuickSave(match)} disabled={saving}>
-                              {saving ? '…' : 'Save'}
-                            </button>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          className={`tm-open ${scorable ? 'is-primary' : ''}`}
-                          onClick={() => onOpenMatch(match)}
-                        >
-                          {scorable ? 'Live scoring' : 'View match'}
-                        </button>
-                      </div>
+                      {isEditing ? (
+                        <div className="tm-actions is-editing">
+                          {scoreInputs}
+                          <button type="button" className="tm-open is-primary" onClick={() => updateResult(match, cardKey)} disabled={saving}>
+                            {saving ? '…' : 'Update'}
+                          </button>
+                          <button type="button" onClick={() => clearResult(match)} disabled={saving}>Clear</button>
+                          <button type="button" className="tm-cancel" aria-label="Cancel editing" onClick={() => stopEditing(match)} disabled={saving}>✕</button>
+                          {editing.error && <div className="tm-error" role="alert">{editing.error}</div>}
+                        </div>
+                      ) : (
+                        <div className="tm-actions">
+                          {scorable && (
+                            <>
+                              {scoreInputs}
+                              <button type="button" className="tm-save" onClick={() => onQuickSave(match)} disabled={saving}>
+                                {saving ? '…' : 'Save'}
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            className={`tm-open ${scorable ? 'is-primary' : ''}`}
+                            onClick={() => onOpenMatch(match)}
+                          >
+                            {scorable ? 'Live scoring' : 'View match'}
+                          </button>
+                          {!scorable && canEditCompleted && (
+                            <button type="button" onClick={() => setEditing({ key: cardKey, error: '' })}>Edit score</button>
+                          )}
+                        </div>
+                      )}
                     </article>
                   );
                 })}
