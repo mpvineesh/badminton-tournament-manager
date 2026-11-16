@@ -149,3 +149,16 @@ test('submissions close at the end of the day before the tournament', () => {
   assert.match(submissionDeadlineLabel('2026-11-15'), /14.*2026, 11:59 PM/);
   assert.equal(submissionDeadlineLabel(''), '');
 });
+
+test('score ranges show a loser penalty as a negative loser bonus', () => {
+  const ranges = buildScoreRanges({
+    winnerPoints: 10,
+    winnerBonusRules: [{ opponentScoreLessThan: 11, points: 5 }, { opponentScoreLessThan: 18, points: 3 }],
+    loserBonusRules: [{ loserScoreGreaterThan: 0, points: 0 }],
+    loserPenaltyRules: [{ loserScoreLessThan: 11, points: 1 }],
+  });
+  assert.deepEqual(
+    ranges.map((r) => [r.id, r.winnerBonus, r.loserBonus, r.detail]),
+    [['0to10', 5, -1, 'Winner +5 · Loser −1'], ['11to17', 3, 0, 'Winner +3'], ['18plus', 0, 0, 'No bonus']]
+  );
+});

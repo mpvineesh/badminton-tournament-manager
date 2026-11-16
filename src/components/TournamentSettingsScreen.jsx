@@ -1,6 +1,6 @@
 import React from 'react';
 import BonusRulesEditor from './BonusRulesEditor.jsx';
-import { getLoserBonusRules, getWinnerBonusRules } from '../utils/pointSystem.js';
+import { getLoserBonusRules, getLoserPenaltyRules, getWinnerBonusRules } from '../utils/pointSystem.js';
 
 function Field({ label, value }) {
   return (
@@ -34,6 +34,7 @@ export default function TournamentSettingsScreen({
     winnerPoints: 0,
     winnerBonusRules: [],
     loserBonusRules: [],
+    loserPenaltyRules: [],
   });
   const [teamNames, setTeamNames] = React.useState({});
   const [localError, setLocalError] = React.useState('');
@@ -50,6 +51,7 @@ export default function TournamentSettingsScreen({
       winnerPoints: String(Number(pointSystem?.winnerPoints) || 0),
       winnerBonusRules: getWinnerBonusRules(pointSystem),
       loserBonusRules: getLoserBonusRules(pointSystem),
+      loserPenaltyRules: getLoserPenaltyRules(pointSystem),
     });
     setTeamNames(
       Object.fromEntries(
@@ -113,6 +115,7 @@ export default function TournamentSettingsScreen({
         winnerPoints: toNonNegative(form.winnerPoints),
         winnerBonusRules: getWinnerBonusRules(form),
         loserBonusRules: getLoserBonusRules(form),
+        loserPenaltyRules: getLoserPenaltyRules(form),
         loserBonusScoreGreaterThan: getLoserBonusRules(form)[0]?.loserScoreGreaterThan || 0,
         loserBonusPoints: getLoserBonusRules(form)[0]?.points || 0,
       },
@@ -280,6 +283,19 @@ export default function TournamentSettingsScreen({
               pointsLabel="Loser bonus points"
               emptyLabel="No loser bonus rules."
               description="Only the highest matching bonus is added to the losing team’s points. Their score must be strictly above the threshold."
+            />
+          </div>
+          <div className="mt-5 border-t border-slate-200 dark:border-navy-700 pt-4">
+            <BonusRulesEditor
+              rules={form.loserPenaltyRules}
+              onChange={(loserPenaltyRules) => setForm((prev) => ({ ...prev, loserPenaltyRules }))}
+              title="Loser penalty rules"
+              addLabel="+ Add penalty rule"
+              thresholdField="loserScoreLessThan"
+              thresholdLabel="Losing team score less than"
+              pointsLabel="Penalty points deducted"
+              emptyLabel="No loser penalty rules."
+              description="Only the highest matching penalty is deducted from the losing team’s points. Their score must be strictly below the threshold."
             />
           </div>
         </div>

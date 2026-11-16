@@ -1,6 +1,6 @@
 import TeamLeaderboardScreen from './components/TeamLeaderboardScreen.jsx';
 import BonusRulesEditor from './components/BonusRulesEditor.jsx';
-import { getLoserBonusRules, getWinnerBonusRules } from './utils/pointSystem.js';
+import { getLoserBonusRules, getLoserPenaltyRules, getWinnerBonusRules } from './utils/pointSystem.js';
 // ================================
 // FILE: src/App.jsx
 // ================================
@@ -180,6 +180,7 @@ export default function App() {
   const [winnerTeamPoint, setWinnerTeamPoint] = useState(2);
   const [winnerBonusRules, setWinnerBonusRules] = useState([{ opponentScoreLessThan: 0, points: 0 }]);
   const [loserBonusRules, setLoserBonusRules] = useState([{ loserScoreGreaterThan: 0, points: 0 }]);
+  const [loserPenaltyRules, setLoserPenaltyRules] = useState([]);
   const [tournamentStatus, setTournamentStatus] = useState('Upcoming');
   const [groupAddSelections, setGroupAddSelections] = useState({});
   const [tournamentsList, setTournamentsList] = useState([]);
@@ -1429,6 +1430,7 @@ export default function App() {
       winnerPoints: Math.max(0, Number(winnerTeamPoint) || 0),
       winnerBonusRules: getWinnerBonusRules({ winnerBonusRules }),
       loserBonusRules: normalizedLoserRules,
+      loserPenaltyRules: getLoserPenaltyRules({ loserPenaltyRules }),
       // Legacy mirror of the first rule so older clients keep reading a value.
       loserBonusScoreGreaterThan: normalizedLoserRules[0]?.loserScoreGreaterThan || 0,
       loserBonusPoints: normalizedLoserRules[0]?.points || 0,
@@ -2787,7 +2789,8 @@ export default function App() {
         if (
           Number(winnerTeamPoint) < 0 ||
           winnerBonusRules.some((rule) => [rule.opponentScoreLessThan, rule.points].some((value) => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0)) ||
-          loserBonusRules.some((rule) => [rule.loserScoreGreaterThan, rule.points].some((value) => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0))
+          loserBonusRules.some((rule) => [rule.loserScoreGreaterThan, rule.points].some((value) => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0)) ||
+          loserPenaltyRules.some((rule) => [rule.loserScoreLessThan, rule.points].some((value) => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0))
         ) {
           return 'Point system values must be non-negative numbers.';
         }
@@ -2910,6 +2913,7 @@ export default function App() {
     winnerTeamPoint,
     winnerBonusRules,
     loserBonusRules,
+    loserPenaltyRules,
   ]);
 
   useEffect(() => {
@@ -3786,6 +3790,19 @@ export default function App() {
                         pointsLabel="Loser bonus points"
                         emptyLabel="No loser bonus rules."
                         description="Only the highest matching bonus is added to the losing team’s points. Their score must be strictly above the threshold."
+                      />
+                    </div>
+                    <div className="sm:col-span-2 border-t border-slate-200 dark:border-navy-700 pt-4">
+                      <BonusRulesEditor
+                        rules={loserPenaltyRules}
+                        onChange={setLoserPenaltyRules}
+                        title="Loser penalty rules"
+                        addLabel="+ Add penalty rule"
+                        thresholdField="loserScoreLessThan"
+                        thresholdLabel="Losing team score less than"
+                        pointsLabel="Penalty points deducted"
+                        emptyLabel="No loser penalty rules."
+                        description="Only the highest matching penalty is deducted from the losing team’s points. Their score must be strictly below the threshold."
                       />
                     </div>
                   </div>

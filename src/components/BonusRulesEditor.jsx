@@ -8,6 +8,7 @@ export default function BonusRulesEditor({
   thresholdLabel = 'Loser score less than',
   pointsLabel = 'Winner bonus points',
   emptyLabel = 'No winner bonus rules.',
+  addLabel = '+ Add bonus rule',
   description = 'Only the highest matching bonus is added to the winner’s points. The loser’s score must be strictly below the threshold.',
 }) {
   function update(index, field, value) {
@@ -18,7 +19,7 @@ export default function BonusRulesEditor({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm font-semibold">{title}</div>
         <button type="button" className="btn-ghost" onClick={() => onChange([...rules, { [thresholdField]: 0, points: 0 }])}>
-          + Add bonus rule
+          {addLabel}
         </button>
       </div>
       <p className="text-xs text-slate-500 dark:text-slate-400">

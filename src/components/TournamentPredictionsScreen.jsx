@@ -571,7 +571,8 @@ export default function TournamentPredictionsScreen({
       .filter((range) => range.winnerBonus || range.loserBonus)
       .map((range) => `a losing score of ${range.label.toLowerCase()} ${[
         range.winnerBonus ? `adds ${range.winnerBonus} to the winner` : '',
-        range.loserBonus ? `adds ${range.loserBonus} to the loser` : '',
+        range.loserBonus > 0 ? `adds ${range.loserBonus} to the loser` : '',
+        range.loserBonus < 0 ? `takes ${-range.loserBonus} from the loser` : '',
       ].filter(Boolean).join(' and ')}`);
     if (!bonuses.length) return base;
     const joined = bonuses.join('; ');

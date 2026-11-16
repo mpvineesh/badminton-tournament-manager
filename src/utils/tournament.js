@@ -1,7 +1,9 @@
 import {
   getLoserBonusRules,
+  getLoserPenaltyRules,
   getWinnerBonusRules,
   loserBonusForScore,
+  loserPenaltyForScore,
   winnerBonusForScore,
 } from './pointSystem.js';
 
@@ -64,6 +66,7 @@ export function computeStandings(pools, teams, matches, pointSystem = {}) {
   const winnerPoints = Number(pointSystem?.winnerPoints ?? 2);
   const winnerBonusRules = getWinnerBonusRules(pointSystem);
   const loserBonusRules = getLoserBonusRules(pointSystem);
+  const loserPenaltyRules = getLoserPenaltyRules(pointSystem);
 
   const result = {};
   const teamSet = new Set(teams.map((t) => t.id));
@@ -94,7 +97,8 @@ export function computeStandings(pools, teams, matches, pointSystem = {}) {
       const winnerScore = aWon ? scoreA : scoreB;
       const loserScore = aWon ? scoreB : scoreA;
       const winnerExtra = winnerBonusForScore(winnerBonusRules, loserScore);
-      const loserExtra = loserBonusForScore(loserBonusRules, loserScore);
+      const loserExtra =
+        loserBonusForScore(loserBonusRules, loserScore) - loserPenaltyForScore(loserPenaltyRules, loserScore);
 
       if (A) {
         A.played++;

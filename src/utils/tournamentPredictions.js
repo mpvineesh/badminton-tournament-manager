@@ -4,8 +4,10 @@
 import { isoDateToday } from './tournament.js';
 import {
   getLoserBonusRules,
+  getLoserPenaltyRules,
   getWinnerBonusRules,
   loserBonusForScore,
+  loserPenaltyForScore,
   winnerBonusForScore,
 } from './pointSystem.js';
 
@@ -38,9 +40,11 @@ function parsePairing(label, stage) {
 export function buildScoreRanges(pointSystem = {}, maxScore = 30) {
   const winnerRules = getWinnerBonusRules(pointSystem).filter((rule) => rule.points > 0);
   const loserRules = getLoserBonusRules(pointSystem).filter((rule) => rule.points > 0);
+  const penaltyRules = getLoserPenaltyRules(pointSystem).filter((rule) => rule.points > 0);
   const boundaries = [
     ...winnerRules.map((rule) => Math.ceil(rule.opponentScoreLessThan)),
     ...loserRules.map((rule) => Math.floor(rule.loserScoreGreaterThan) + 1),
+    ...penaltyRules.map((rule) => Math.ceil(rule.loserScoreLessThan)),
   ]
     .filter((value) => Number.isFinite(value) && value > 0 && value <= maxScore)
     .sort((a, b) => a - b)
@@ -52,14 +56,15 @@ export function buildScoreRanges(pointSystem = {}, maxScore = 30) {
     const next = starts[index + 1];
     const max = next === undefined ? null : next - 1;
     const winnerBonus = winnerBonusForScore(winnerRules, min);
-    const loserBonus = loserBonusForScore(loserRules, min);
+    // Net effect on the losing team: negative when a penalty applies.
+    const loserBonus = loserBonusForScore(loserRules, min) - loserPenaltyForScore(penaltyRules, min);
     let label;
     if (index === 0) label = max === 0 ? '0' : `Below ${next}`;
     else if (max === null) label = `${min}+`;
     else label = min === max ? String(min) : `${min}–${max}`;
     const parts = [];
     if (winnerBonus) parts.push(`Winner +${winnerBonus}`);
-    if (loserBonus) parts.push(`Loser +${loserBonus}`);
+    if (loserBonus) parts.push(`Loser ${loserBonus > 0 ? '+' : '−'}${Math.abs(loserBonus)}`);
     return {
       id: max === null ? `${min}plus` : `${min}to${max}`,
       label,

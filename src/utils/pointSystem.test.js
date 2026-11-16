@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { computeStandings } from './tournament.js';
 import {
   getLoserBonusRules,
+  getLoserPenaltyRules,
   getWinnerBonusRules,
   loserBonusForScore,
+  loserPenaltyForScore,
   winnerBonusForScore,
 } from './pointSystem.js';
 
@@ -75,4 +77,28 @@ test('standings apply the highest configured bonus to the losing team', () => {
   ).pool;
   assert.equal(table.find((row) => row.teamId === 'a').points, 1);
   assert.equal(table.find((row) => row.teamId === 'b').points, 3);
+});
+
+test('loser penalty rules deduct the highest matching penalty and default to none', () => {
+  assert.deepEqual(getLoserPenaltyRules({}), []);
+  const penalties = getLoserPenaltyRules({ loserPenaltyRules: [{ loserScoreLessThan: '11', points: '1' }, { loserScoreLessThan: 5, points: 3 }] });
+  for (const [score, expected] of [[0, 3], [4, 3], [5, 1], [10, 1], [11, 0], [19, 0]]) {
+    assert.equal(loserPenaltyForScore(penalties, score), expected);
+  }
+  const pointSystem = {
+    winnerPoints: 10,
+    winnerBonusRules: [{ opponentScoreLessThan: 11, points: 5 }, { opponentScoreLessThan: 18, points: 3 }],
+    loserBonusRules: [],
+    loserPenaltyRules: [{ loserScoreLessThan: 11, points: 1 }],
+  };
+  const points = (scoreB) => {
+    const table = computeStandings(
+      [{ id: 'pool', teamIds: ['a', 'b'] }], [{ id: 'a' }, { id: 'b' }],
+      [{ status: 'Completed', teamAId: 'a', teamBId: 'b', scoreA: 21, scoreB }], pointSystem
+    ).pool;
+    return ['a', 'b'].map((id) => table.find((row) => row.teamId === id).points);
+  };
+  assert.deepEqual(points(10), [15, -1]);
+  assert.deepEqual(points(11), [13, 0]);
+  assert.deepEqual(points(18), [10, 0]);
 });

@@ -34,3 +34,18 @@ export function loserBonusForScore(rules, loserScore) {
   return rules.reduce((bonus, rule) =>
     loserScore > rule.loserScoreGreaterThan ? Math.max(bonus, rule.points) : bonus, 0);
 }
+
+// Penalties are stored as positive numbers and deducted from the losing team.
+// Tournaments saved before penalties existed simply have none.
+export function getLoserPenaltyRules(pointSystem = {}) {
+  const rules = Array.isArray(pointSystem?.loserPenaltyRules) ? pointSystem.loserPenaltyRules : [];
+  return rules.map((rule) => ({
+    loserScoreLessThan: nonNegative(rule?.loserScoreLessThan),
+    points: nonNegative(rule?.points),
+  }));
+}
+
+export function loserPenaltyForScore(rules, loserScore) {
+  return rules.reduce((penalty, rule) =>
+    loserScore < rule.loserScoreLessThan ? Math.max(penalty, rule.points) : penalty, 0);
+}
