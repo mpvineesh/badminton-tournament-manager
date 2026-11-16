@@ -1,6 +1,7 @@
 import React from 'react';
 import { computeStandings } from '../utils/tournament.js';
 import MatchScoringScreen from './MatchScoringScreen.jsx';
+import TournamentMatchesList from './TournamentMatchesList.jsx';
 
 function fmtDiff(n) {
   const v = Number(n) || 0;
@@ -102,7 +103,7 @@ export default function TournamentsScreen({
       if (statusDiff !== 0) return statusDiff;
       const stageDiff = getStagePriority(a.stage) - getStagePriority(b.stage);
       if (stageDiff !== 0) return stageDiff;
-      return String(a.label || '').localeCompare(String(b.label || ''));
+      return String(a.label || '').localeCompare(String(b.label || ''), undefined, { numeric: true });
     });
   const getTournamentStatusSortPriority = (status) => {
     if (status === 'Live') return 0;
@@ -634,149 +635,23 @@ export default function TournamentsScreen({
 
       {tournamentView === 'matches' && selectedTournament && (
         <div className="rounded-xl border border-slate-200 dark:border-navy-700 bg-white/95 dark:bg-navy-900/95 p-3 sm:p-4 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <div>
-              <div className="font-semibold text-lg">Matches</div>
-              <div className="text-sm text-slate-500 dark:text-slate-400 truncate">{selectedTournament.name}</div>
-            </div>
-            <button
-              className="btn-ghost"
-              onClick={() => setTournamentView('list')}
-            >
-              Back
-            </button>
-          </div>
-
-          {(() => {
-            const all = getOrderedMatches(selectedTournament);
-            if (all.length === 0) {
-              return (
-                <div className="rounded-xl border border-dashed border-slate-300 dark:border-navy-700 py-12 text-center">
-                  <div className="text-sm font-medium text-slate-600 dark:text-slate-300">No matches yet</div>
-                  <p className="mt-1 text-xs text-slate-400">Generate fixtures to see matches here.</p>
-                </div>
-              );
+          <TournamentMatchesList
+            tournament={selectedTournament}
+            matches={getOrderedMatches(selectedTournament)}
+            onBack={() => setTournamentView('list')}
+            onOpenMatch={openMatchFromWidget}
+            isScorable={isScorableMatch}
+            getQuickScore={getQuickScore}
+            setQuickScore={setQuickScore}
+            onQuickSave={(m) =>
+              saveMatchTracking({
+                ref: { stage: m.stage, id: m.id },
+                scoreA: getQuickScore(m, 'a'),
+                scoreB: getQuickScore(m, 'b'),
+              })
             }
-            const teamsById = Object.fromEntries(
-              (selectedTournament.teams || []).map((tm) => [tm.id, tm])
-            );
-            const stageMeta = {
-              Group: { label: 'Group Stage', dot: 'bg-navy-500' },
-              Semifinal: { label: 'Semifinals', dot: 'bg-amber-500' },
-              Final: { label: 'Final', dot: 'bg-gold-500' },
-            };
-            const order = ['Group', 'Semifinal', 'Final'];
-            const grouped = all.reduce((acc, m) => {
-              (acc[m.stage] = acc[m.stage] || []).push(m);
-              return acc;
-            }, {});
-            const stages = [
-              ...order.filter((s) => grouped[s]),
-              ...Object.keys(grouped).filter((s) => !order.includes(s)),
-            ];
-            let counter = 0;
-            return stages.map((stage) => (
-              <section key={stage} className="mt-5 first:mt-2">
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  <span className={`h-2 w-2 rounded-full ${(stageMeta[stage] || {}).dot || 'bg-slate-400'}`} />
-                  {(stageMeta[stage] || {}).label || stage}
-                  <span className="font-normal text-slate-400">· {grouped[stage].length}</span>
-                </div>
-                <div className="grid gap-2.5 sm:grid-cols-2">
-                  {grouped[stage].map((m) => {
-                    counter += 1;
-                    const teamA = withWinnerTrophy(m, 'A', getMatchSideName(m, teamsById, 'A'));
-                    const teamB = withWinnerTrophy(m, 'B', getMatchSideName(m, teamsById, 'B'));
-                    const winnerA = m.winnerTeamId && m.winnerTeamId === m.teamAId;
-                    const winnerB = m.winnerTeamId && m.winnerTeamId === m.teamBId;
-                    const live = m.status === 'Live';
-                    const accent = live
-                      ? 'border-l-4 border-l-orange-400'
-                      : m.status === 'Completed'
-                        ? 'border-l-4 border-l-emerald-400'
-                        : 'border-l-4 border-l-slate-200 dark:border-l-navy-700';
-                    const scorable = isScorableMatch(m.status);
-                    return (
-                      <div
-                        key={`${m.stage}-${m.id}`}
-                        className={`min-w-0 rounded-xl border border-slate-200 dark:border-navy-700 bg-white dark:bg-navy-900 p-3 shadow-sm ${accent}`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                            {m.label || `Match ${counter}`}
-                          </div>
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${getMatchStatusBadgeClass(m.status)}`}
-                          >
-                            {live && <span className="h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" />}
-                            {getMatchStatusLabel(m.status)}
-                          </span>
-                        </div>
-                        <div className="mt-2 flex items-center gap-2">
-                          <div
-                            className={`min-w-0 flex-1 truncate text-right text-sm font-semibold ${winnerA ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200'}`}
-                          >
-                            {teamA}
-                          </div>
-                          <div className="shrink-0 rounded-lg bg-slate-100 dark:bg-navy-800 px-2.5 py-1 text-sm font-bold tabular-nums text-navy-800 dark:text-slate-100">
-                            {m.scoreA ?? '–'}
-                            <span className="px-1 text-slate-400">:</span>
-                            {m.scoreB ?? '–'}
-                          </div>
-                          <div
-                            className={`min-w-0 flex-1 truncate text-sm font-semibold ${winnerB ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200'}`}
-                          >
-                            {teamB}
-                          </div>
-                        </div>
-                        <div className="mt-3 flex items-center gap-1.5">
-                          {scorable && (
-                            <>
-                              <input
-                                type="number"
-                                min={0}
-                                value={getQuickScore(m, 'a')}
-                                onChange={(e) => setQuickScore(m, 'a', e.target.value)}
-                                className="w-11 min-w-0 shrink-0 rounded-lg border px-1.5 py-1 text-center text-sm"
-                                placeholder="A"
-                              />
-                              <input
-                                type="number"
-                                min={0}
-                                value={getQuickScore(m, 'b')}
-                                onChange={(e) => setQuickScore(m, 'b', e.target.value)}
-                                className="w-11 min-w-0 shrink-0 rounded-lg border px-1.5 py-1 text-center text-sm"
-                                placeholder="B"
-                              />
-                              <button
-                                className="rounded-lg border border-slate-300 dark:border-navy-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-navy-800 disabled:opacity-60"
-                                onClick={() =>
-                                  saveMatchTracking({
-                                    ref: { stage: m.stage, id: m.id },
-                                    scoreA: getQuickScore(m, 'a'),
-                                    scoreB: getQuickScore(m, 'b'),
-                                  })
-                                }
-                                disabled={savingMatch}
-                              >
-                                {savingMatch ? '…' : 'Save'}
-                              </button>
-                            </>
-                          )}
-                          <button
-                            className={`min-w-0 flex-1 truncate rounded-lg px-3 py-1.5 text-sm font-semibold text-white ${scorable ? 'bg-navy-700 hover:bg-navy-600' : 'bg-slate-500 hover:bg-slate-600'}`}
-                            onClick={() => openMatchFromWidget(m)}
-                          >
-                            {scorable ? 'Live scoring' : 'View'}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            ));
-          })()}
+            saving={savingMatch}
+          />
         </div>
       )}
 

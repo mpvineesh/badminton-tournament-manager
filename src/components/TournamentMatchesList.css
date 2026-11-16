@@ -1,0 +1,320 @@
+/* "All Matches" cards. Colours come from the app theme (AppTheme.css) so the
+   cards match the SMASHPICKS fixture cards in dark mode and stay readable in light. */
+.tm-matches {
+  --tm-surface: var(--app-surface, #102728);
+  --tm-raised: var(--app-surface-raised, #153335);
+  --tm-border: var(--app-border, #294746);
+  --tm-text: var(--app-text, #edf7f5);
+  --tm-muted: var(--app-muted, #a6c0ba);
+  --tm-accent: var(--app-accent, #c5f36b);
+  --tm-live: #ffb86b;
+  color: var(--tm-text);
+}
+
+html:not(.dark) .tm-matches {
+  --tm-live: #b45309;
+}
+
+.tm-matches-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tm-matches-heading {
+  min-width: 0;
+}
+
+.tm-matches-eyebrow {
+  overflow: hidden;
+  color: var(--tm-accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tm-matches-heading h2 {
+  margin: 2px 0 0;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.tm-matches-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tm-matches-filter select {
+  max-width: 190px;
+  min-height: 40px;
+  border: 1px solid var(--tm-border);
+  border-radius: 10px;
+  padding: 0 10px;
+  color: var(--tm-text);
+  background: var(--tm-surface);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tm-matches-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 16px 0 12px;
+  color: var(--tm-muted);
+  font-size: 12px;
+}
+
+.tm-matches-summary strong {
+  color: var(--tm-accent);
+  font-size: 18px;
+}
+
+.tm-matches-empty {
+  display: grid;
+  gap: 4px;
+  margin-top: 16px;
+  border: 1px dashed var(--tm-border);
+  border-radius: 15px;
+  padding: 40px 16px;
+  color: var(--tm-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.tm-matches-empty strong {
+  color: var(--tm-text);
+}
+
+.tm-stage + .tm-stage {
+  margin-top: 22px;
+}
+
+.tm-stage-title {
+  margin-bottom: 9px;
+  color: var(--tm-text);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tm-stage-title span {
+  color: var(--tm-muted);
+  font-weight: 600;
+}
+
+.tm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tm-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--tm-border);
+  border-radius: 15px;
+  padding: 15px;
+  background: linear-gradient(140deg, var(--tm-surface), var(--tm-raised));
+}
+
+.tm-card.is-live {
+  border-color: var(--tm-live);
+}
+
+.tm-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 13px;
+  color: var(--tm-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tm-card-title > span:first-child {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tm-status,
+.tm-pairing {
+  border: 1px solid var(--tm-border);
+  border-radius: 20px;
+  padding: 4px 8px;
+  background: var(--tm-raised);
+  white-space: nowrap;
+}
+
+.tm-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--tm-muted);
+}
+
+.tm-status.is-final,
+.tm-pairing {
+  color: var(--tm-accent);
+}
+
+.tm-status.is-live {
+  border-color: var(--tm-live);
+  color: var(--tm-live);
+}
+
+.tm-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: tm-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tm-pulse {
+  50% { opacity: 0.25; }
+}
+
+.tm-teams {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.tm-team {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.tm-team:last-child {
+  text-align: right;
+}
+
+.tm-team > span {
+  color: var(--tm-accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.tm-team strong {
+  color: var(--tm-text);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.tm-team.is-loser > span,
+.tm-team.is-loser strong {
+  color: var(--tm-muted);
+}
+
+.tm-vs {
+  min-width: 28px;
+  color: var(--tm-muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.tm-vs.is-score {
+  border: 1px solid var(--tm-border);
+  border-radius: 10px;
+  padding: 6px 9px;
+  color: var(--tm-text);
+  background: var(--tm-raised);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tm-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 13px;
+  border-top: 1px solid var(--tm-border);
+  padding-top: 11px;
+}
+
+.tm-actions input {
+  width: 50px;
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--tm-border);
+  border-radius: 10px;
+  padding: 0 4px;
+  color: var(--tm-text);
+  background: var(--tm-surface);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.tm-actions button {
+  min-height: 38px;
+  border: 1px solid var(--tm-border);
+  border-radius: 10px;
+  padding: 0 13px;
+  color: var(--tm-text);
+  background: var(--tm-raised);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tm-actions button:disabled {
+  opacity: 0.6;
+}
+
+.tm-actions .tm-open {
+  flex: 1;
+  min-width: 0;
+}
+
+.tm-actions .tm-open.is-primary {
+  border-color: var(--tm-accent);
+  color: var(--app-bg, #071719);
+  background: var(--tm-accent);
+}
+
+html:not(.dark) .tm-actions .tm-open.is-primary {
+  color: #ffffff;
+}
+
+@media (max-width: 640px) {
+  .tm-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .tm-matches-heading h2 {
+    font-size: 21px;
+  }
+
+  .tm-card {
+    padding: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-status i {
+    animation: none;
+  }
+}
