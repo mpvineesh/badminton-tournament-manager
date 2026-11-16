@@ -21,8 +21,7 @@ export default function TournamentsScreen({
   onOpenTournamentPredictions,
   onOpenTournamentFixtures,
   onOpenTournamentTv,
-  onCreateTeamTournament,
-  creatingTeamTournament = false,
+  onCreateTournament,
   handleTournamentDelete,
   openTournamentLiveView,
   setTournamentView,
@@ -370,10 +369,9 @@ export default function TournamentsScreen({
                 {isAdminUser && (
                   <button
                     className="px-3 py-1.5 rounded-lg border border-navy-300 bg-navy-50 text-navy-800 hover:bg-navy-100 text-sm disabled:opacity-50"
-                    onClick={onCreateTeamTournament}
-                    disabled={creatingTeamTournament}
+                    onClick={onCreateTournament}
                   >
-                    {creatingTeamTournament ? 'Creating…' : 'Create team tournament'}
+                    Create tournament
                   </button>
                 )}
                 <button
@@ -419,12 +417,14 @@ export default function TournamentsScreen({
                         ) : null}
                       </div>
                       <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button
-                          className="px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
-                          onClick={() => onOpenTournamentFixture(row.id)}
-                        >
-                          Fixture
-                        </button>
+                        {row?.payload?.format !== 'team-match' && (
+                          <button
+                            className="px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
+                            onClick={() => onOpenTournamentFixture(row.id)}
+                          >
+                            Fixture
+                          </button>
+                        )}
                         <button
                           className="px-2 py-1.5 rounded-lg border hover:bg-slate-100 text-sm"
                           onClick={() => openTournamentLiveView(row.id, 'matches')}
@@ -533,12 +533,14 @@ export default function TournamentsScreen({
                               >
                                 {row.status || 'Upcoming'}
                               </span>
-                              <button
-                                className="px-2 py-1 rounded-lg border hover:bg-slate-100"
-                                onClick={() => onOpenTournamentFixture(row.id)}
-                              >
-                                Open Fixture
-                              </button>
+                              {row?.payload?.format !== 'team-match' && (
+                                <button
+                                  className="px-2 py-1 rounded-lg border hover:bg-slate-100"
+                                  onClick={() => onOpenTournamentFixture(row.id)}
+                                >
+                                  Open Fixture
+                                </button>
+                              )}
                               {canDeleteTournament?.(row) && (
                                 <button
                                   className="px-2 py-1 rounded-lg border text-red-700 hover:bg-red-50"
@@ -617,14 +619,15 @@ export default function TournamentsScreen({
             isScorable={isScorableMatch}
             getQuickScore={getQuickScore}
             setQuickScore={setQuickScore}
-            onQuickSave={(m) =>
+            onQuickSave={(m, scores) =>
               saveMatchTracking({
                 ref: { stage: m.stage, id: m.id },
-                scoreA: getQuickScore(m, 'a'),
-                scoreB: getQuickScore(m, 'b'),
+                scoreA: scores ? scores.a : getQuickScore(m, 'a'),
+                scoreB: scores ? scores.b : getQuickScore(m, 'b'),
               })
             }
             saving={savingMatch}
+            canEditCompleted={isAdminUser}
           />
         </div>
       )}

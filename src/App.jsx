@@ -32,6 +32,8 @@ import PredictionsScreen from './components/PredictionsScreen.jsx';
 import TeamPredictionsScreen from './components/TeamPredictionsScreen.jsx';
 import TournamentPredictionsScreen from './components/TournamentPredictionsScreen.jsx';
 import TournamentFixturesScreen from './components/TournamentFixturesScreen.jsx';
+import TeamTournamentBuilder from './components/TeamTournamentBuilder.jsx';
+import { buildTeamTournamentPayload } from './utils/teamMatchTournament.js';
 import TvDisplayScreen from './components/TvDisplayScreen.jsx';
 import {
   buildLeaderboard,
@@ -43,7 +45,6 @@ import {
 import { buildLegacyLeaderboard, LEGACY_EVENT_DATE } from './utils/legacyPredictionResults.js';
 import FixturesScreen from './components/FixturesScreen.jsx';
 import {
-  buildTeamMatchTournamentPayload,
   getTournamentRosterPlayerIds,
   TEAM_MATCH_TOURNAMENT_NAME,
 } from './data/teamMatchFixtures.js';
@@ -181,6 +182,9 @@ export default function App() {
   const [winnerBonusRules, setWinnerBonusRules] = useState([{ opponentScoreLessThan: 0, points: 0 }]);
   const [loserBonusRules, setLoserBonusRules] = useState([{ loserScoreGreaterThan: 0, points: 0 }]);
   const [loserPenaltyRules, setLoserPenaltyRules] = useState([]);
+  // Create wizard: the Teams format has its own single-step builder.
+  const [teamFormat, setTeamFormat] = useState(false);
+  const [creatingTeamTournament, setCreatingTeamTournament] = useState(false);
   const [tournamentStatus, setTournamentStatus] = useState('Upcoming');
   const [groupAddSelections, setGroupAddSelections] = useState({});
   const [tournamentsList, setTournamentsList] = useState([]);
@@ -213,7 +217,6 @@ export default function App() {
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [selectedPlayerStatsId, setSelectedPlayerStatsId] = useState('');
   const [playerStatsReturnMenu, setPlayerStatsReturnMenu] = useState('players');
-  const [creatingTeamTournament, setCreatingTeamTournament] = useState(false);
   const [savingTournamentSettings, setSavingTournamentSettings] = useState(false);
   const autoSemisInProgressRef = useRef(false);
   const menuRef = useRef(null);
@@ -1194,6 +1197,7 @@ export default function App() {
         finalMatch: t.finalMatch,
         createdByMobile: existingCreator || creatorMobile || '',
         created_at: new Date().toISOString(),
+        ...(existing?.payload?.format ? { format: existing.payload.format } : {}),
       };
       const payload = {
         ...basePayload,
@@ -1219,33 +1223,37 @@ export default function App() {
     }
   }
 
-  async function createTeamMatchTournament() {
-    if (!isAdminUser || creatingTeamTournament) return;
+  async function createTeamTournament(input) {
+    if (creatingTeamTournament) return;
+    if (!isAdminUser && !isFutureEventDateForNonAdmin(input.eventDate)) {
+      throw new Error(`Only admins can create tournaments for today/past dates. Choose a date after ${isoDateToday()}.`);
+    }
     setCreatingTeamTournament(true);
     setTournamentsError('');
     try {
-      const existing = (tournamentsList || []).find(
-        (row) => String(row?.name || row?.payload?.name || '').trim().toLowerCase() ===
-          TEAM_MATCH_TOURNAMENT_NAME.toLowerCase()
-      );
-      if (existing?.id) {
-        await openTournamentDetailsFromHome(existing.id);
-        return;
-      }
-      const payload = buildTeamMatchTournamentPayload(
-        playersDbList,
-        getCurrentUserMobileNormalized()
-      );
+      const payload = buildTeamTournamentPayload({ ...input, createdByMobile: getCurrentUserMobileNormalized() });
       const tournamentId = await saveTournament(payload);
       if (!tournamentId) throw new Error('Tournament could not be saved.');
       await refreshTournamentsList();
+      setTeamFormat(false);
+      t.setTournamentName('');
       await openTournamentDetailsFromHome(tournamentId);
-    } catch (error) {
-      console.error(error);
-      setTournamentsError(error?.message || 'Unable to create the team tournament.');
     } finally {
       setCreatingTeamTournament(false);
     }
+  }
+
+  // Opens the create-tournament wizard on a blank tournament.
+  function startNewTournament() {
+    setMenuOpen(false);
+    setTeamFormat(false);
+    setFixtureTournamentId(null);
+    setSelectedTournament(null);
+    setSelectedMatchRef(null);
+    setTournamentView('list');
+    t.setError('');
+    t.setStep(1);
+    setActiveMenu('fixture');
   }
 
   async function handleTournamentDelete(input) {
@@ -1514,6 +1522,7 @@ export default function App() {
         finalMatch: t.finalMatch,
         createdByMobile: existingCreator || currentUserMobile || '',
         created_at: new Date().toISOString(),
+        ...(existing?.payload?.format ? { format: existing.payload.format } : {}),
         ...overrides,
       };
       const payload = {
@@ -3239,16 +3248,7 @@ export default function App() {
           setMenuOpen(false);
           setActiveMenu('home');
         }}
-        onFixture={() => {
-          setMenuOpen(false);
-          setFixtureTournamentId(null);
-          setSelectedTournament(null);
-          setSelectedMatchRef(null);
-          setTournamentView('list');
-          t.setError('');
-          t.setStep(1);
-          setActiveMenu('fixture');
-        }}
+        onFixture={startNewTournament}
         onPlayer={() => {
           setMenuOpen(false);
           setActiveMenu('players');
@@ -3307,7 +3307,7 @@ export default function App() {
             tournamentCount={tournamentsList.length}
             liveTournament={(tournamentsList || []).find((row) => row?.status === 'Live') || null}
             tournaments={tournamentsList}
-            onOpenFixture={() => setActiveMenu('fixture')}
+            onOpenFixture={startNewTournament}
             onManagePlayers={() => setActiveMenu('players')}
             onBrowseTournaments={() => setActiveMenu('tournaments')}
             onOpenTournament={openTournamentDetailsFromHome}
@@ -3494,8 +3494,7 @@ export default function App() {
             getTournamentCreatorName={getTournamentCreatorName}
             onOpenTournamentDetails={openTournamentDetailsFromHome}
             onOpenTournamentSettings={openTournamentSettings}
-            onCreateTeamTournament={createTeamMatchTournament}
-            creatingTeamTournament={creatingTeamTournament}
+            onCreateTournament={startNewTournament}
             onOpenTournamentPredictions={openTournamentPicks}
             onOpenTournamentFixtures={openTournamentFixtures}
             onOpenTournamentTv={openTournamentTv}
@@ -3562,7 +3561,7 @@ export default function App() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <label
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer ${
-                    t.mode === 'group'
+                    t.mode === 'group' && !teamFormat
                       ? 'bg-slate-100 border-slate-400'
                       : 'border-slate-200'
                   }`}
@@ -3570,14 +3569,14 @@ export default function App() {
                   <input
                     type="radio"
                     className="sr-only"
-                    checked={t.mode === 'group'}
-                    onChange={() => t.setMode('group')}
+                    checked={t.mode === 'group' && !teamFormat}
+                    onChange={() => { setTeamFormat(false); t.setMode('group'); }}
                   />
                   <span>Group</span>
                 </label>
                 <label
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer ${
-                    t.mode === 'doubles'
+                    t.mode === 'doubles' && !teamFormat
                       ? 'bg-slate-100 border-slate-400'
                       : 'border-slate-200'
                   }`}
@@ -3585,10 +3584,23 @@ export default function App() {
                   <input
                     type="radio"
                     className="sr-only"
-                    checked={t.mode === 'doubles'}
-                    onChange={() => t.setMode('doubles')}
+                    checked={t.mode === 'doubles' && !teamFormat}
+                    onChange={() => { setTeamFormat(false); t.setMode('doubles'); }}
                   />
                   <span>Doubles</span>
+                </label>
+                <label
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer ${
+                    teamFormat ? 'bg-slate-100 border-slate-400' : 'border-slate-200'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    className="sr-only"
+                    checked={teamFormat}
+                    onChange={() => setTeamFormat(true)}
+                  />
+                  <span>Teams</span>
                 </label>
               </div>
             </Card>
@@ -3605,7 +3617,15 @@ export default function App() {
               </p>
             </Card>
 
-            {t.mode === 'group' ? (
+            {teamFormat ? (
+              <TeamTournamentBuilder
+                name={t.tournamentName}
+                eventDate={t.eventDate}
+                players={playersDbList}
+                onCreate={createTeamTournament}
+                creating={creatingTeamTournament}
+              />
+            ) : t.mode === 'group' ? (
               <>
                 <Card title="Number of Groups">
                   <input
@@ -3826,11 +3846,13 @@ export default function App() {
               </Card>
             )}
 
-            <div className="sm:col-span-3 flex justify-end">
-              <button className="btn-primary w-full sm:w-auto" onClick={goToNextStep}>
-                Next: Players
-              </button>
-            </div>
+            {!teamFormat && (
+              <div className="sm:col-span-3 flex justify-end">
+                <button className="btn-primary w-full sm:w-auto" onClick={goToNextStep}>
+                  Next: Players
+                </button>
+              </div>
+            )}
           </section>
             )}
 
@@ -4540,6 +4562,7 @@ export default function App() {
           </section>
             )}
 
+            {!(teamFormat && t.step === 1) && (
             <div className="mt-6 sticky bottom-3 z-10">
               <div className="ml-auto w-full sm:w-auto rounded-xl border bg-white/95 dark:bg-navy-900/95 backdrop-blur px-3 py-3 shadow-lg flex flex-wrap sm:flex-nowrap justify-end gap-2">
                 <button
@@ -4564,6 +4587,7 @@ export default function App() {
               </button>
               </div>
             </div>
+            )}
           </>
         )}
 
